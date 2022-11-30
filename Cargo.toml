@@ -10,10 +10,9 @@ dcaf = { version = "^0.3", default-features = false }
 coset = { version = "^0.3", default-features = false }
 
 # for aesccm.rs:
-aes = "0.7"
-ccm = "^0.4.4"
-cipher = "^0.3.0"
-aead = "^0.4.3"
+aes = "0.8"
+ccm = "^0.5"
+aead = "^0.5"
 
 hex-literal = "0.3"
 # whatever coset/dcaf use, we only mention it once and hope for the best w/o them re-exporting it

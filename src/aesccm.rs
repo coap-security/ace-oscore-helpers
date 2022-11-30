@@ -11,10 +11,10 @@
  */
 
 use aead::generic_array::{ArrayLength, GenericArray};
-use aead::{Aead, Key, NewAead, Payload};
+use aead::{Aead, Key, Payload, KeyInit};
 use ccm::consts::U16;
 use ccm::{Ccm, NonceSize, TagSize};
-use cipher::{Block, BlockCipher, BlockEncrypt, NewBlockCipher};
+use aes::cipher::{Block, BlockCipher, BlockEncrypt};
 use coset::{Algorithm, Header};
 use dcaf::error::CoseCipherError;
 use dcaf::token::CoseCipherCommon;
@@ -22,8 +22,8 @@ use dcaf::CoseEncrypt0Cipher;
 
 pub struct RustCryptoCcmCoseCipher<C, M, N>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt + NewBlockCipher,
-    C::ParBlocks: ArrayLength<Block<C>>,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + KeyInit,
+    C::BlockSize: ArrayLength<Block<C>>,
     M: ArrayLength<u8> + TagSize,
     N: ArrayLength<u8> + NonceSize,
 {
@@ -33,8 +33,8 @@ where
 
 impl<C, M, N> RustCryptoCcmCoseCipher<C, M, N>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt + NewBlockCipher,
-    C::ParBlocks: ArrayLength<Block<C>>,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + KeyInit,
+    C::BlockSize: ArrayLength<Block<C>>,
     M: ArrayLength<u8> + TagSize,
     N: ArrayLength<u8> + NonceSize,
 {
@@ -45,7 +45,7 @@ where
 
 impl<C, M, N> CoseCipherCommon for RustCryptoCcmCoseCipher<C, M, N>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt + NewBlockCipher,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + KeyInit,
     M: ArrayLength<u8> + TagSize,
     N: ArrayLength<u8> + NonceSize,
 {
@@ -72,8 +72,8 @@ where
 
 impl<C, M, N> CoseEncrypt0Cipher for RustCryptoCcmCoseCipher<C, M, N>
 where
-    C: BlockCipher<BlockSize = U16> + BlockEncrypt + NewBlockCipher,
-    C::ParBlocks: ArrayLength<Block<C>>,
+    C: BlockCipher<BlockSize = U16> + BlockEncrypt + KeyInit,
+    C::BlockSize: ArrayLength<Block<C>>,
     M: ArrayLength<u8> + TagSize,
     N: ArrayLength<u8> + NonceSize,
 {
