@@ -1,4 +1,6 @@
 // Source: https://gist.github.com/falko17/3639876b57744c6dd2a166b5bc9cc126
+extern crate alloc;
+use alloc::vec::Vec;
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 /*
