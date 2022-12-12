@@ -8,6 +8,20 @@ edition = "2021"
 [dependencies]
 dcaf = { version = "^0.3", default-features = false }
 coset = { version = "^0.3", default-features = false }
+# to pick data out of them
+ciborium = { version = "0.2.0", default-features = false }
+
+uluru = "3.0.0"
+coap-handler = "0.1.4"
+coap-message = "0.2.3"
+coap-numbers = "0.2.0"
+coap-handler-implementations = { version = "0.3.5", features = [ "ciborium-io" ] }
+# We could use higher-level ciborium (given whatever fixes dcaf's/coset's
+# dependency on its alloc will fix it here too), but given that its serde based
+# high-level deserializer won't use numeric map keys, we need to go on foot
+# anyway.
+ciborium-ll = "0.2.0"
+ciborium-io = { version = "0.2.0", default-features = false }
 
 # for aesccm.rs:
 aes = "0.8"
@@ -15,8 +29,23 @@ ccm = { version = "^0.5", default-features = false }
 aead = { version = "^0.5", features = [ "alloc" ] }
 
 hex-literal = "0.3"
-# whatever coset/dcaf use, we only mention it once and hope for the best w/o them re-exporting it
-ciborium = { version = "*", default-features = false }
+heapless = { version = "0.7.16", features = [ "defmt-impl" ] }
+
+# just to derive the right things
+defmt = "*"
+
+# for demo_rs
+
+embedded-nal-minimal-coapserver = { version = "^0.3", optional = true }
+embedded-nal = { version = "^0.6", optional = true }
+std-embedded-nal = { version = "^0.1.2", optional = true }
+
+[features]
+example-demo_rs = [ "embedded-nal-minimal-coapserver", "embedded-nal", "std-embedded-nal" ]
+
+[[example]]
+name = "demo_rs"
+required-features = [ "example-demo_rs" ]
 
 [patch.crates-io]
 coset = { git = "https://github.com/chrysn-pull-requests/coset", branch = "oscore" }
