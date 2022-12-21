@@ -7,7 +7,7 @@
 
 /// Error type indicating that a token does not contain usable credentials to set up OSCORE through
 /// the ACE OSCORE profile
-#[derive(defmt::Format)]
+#[derive(defmt::Format, Debug)]
 pub struct NoOscoreCnf;
 
 // This takes ownership of a ClaimsSet because the i128 keyed map version dcaf works with contains
