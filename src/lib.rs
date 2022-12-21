@@ -5,6 +5,7 @@
 #![no_std]
 
 pub mod aesccm;
+#[cfg(feature = "liboscore")]
 pub mod resourceserver;
 pub mod oscore_claims;
 

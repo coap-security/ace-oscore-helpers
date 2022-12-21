@@ -36,18 +36,6 @@ pub struct RsAsSharedData {
     pub key: aead::Key<ccm::Ccm<aes::Aes256,  aead::generic_array::typenum::U16, aead::generic_array::typenum::U13>>,
 }
 
-/// Placeholder for what will be a libOSCORE primitive context
-#[derive(Debug)]
-pub struct OscoreContext {
-    recipient_id: Id,
-}
-
-impl OscoreContext {
-    fn recipient_id(&self) -> &Id {
-        &self.recipient_id
-    }
-}
-
 /// ...
 ///
 /// ## Possible improvements
@@ -61,7 +49,7 @@ pub struct ResourceServer<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>>
     //
     // TBD: We could store whether the token was used for successful communication, and then ensure
     // that some previously-used tokens are not evicted before unverified ones.
-    tokens: uluru::LRUCache<(OscoreContext, APPCLAIMS), MAX_TOKENS>,
+    tokens: uluru::LRUCache<(liboscore::PrimitiveContext, APPCLAIMS), MAX_TOKENS>,
     // It might also make sense to have these iterable
     as_data: RsAsSharedData,
 }
@@ -97,21 +85,15 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     ///
     /// If the material is recognized, its old version could be evicted (as suggested in RFC9203
     /// right above 4.2.1).
-    fn derive_and_insert(&mut self, material: OscoreInputMaterial, app_claims: APPCLAIMS, id1: Id, nonce1: Nonce) -> (Id, Nonce) {
+    fn derive_and_insert(&mut self, material: OscoreInputMaterial, app_claims: APPCLAIMS, id1: Id, nonce1: Nonce) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
         let nonce2 = Nonce::try_from([4].as_ref()).unwrap(); // FIXME DANGER (also won't work as
                                                              // the length is wrong)
         let id2 = self.take_id2();
 
-        let context = Self::derive(material, &id1, &id2, &nonce1, &nonce2);
+        let context = crate::oscore_claims::derive(material, &id1, &id2, &nonce1, &nonce2)?;
         self.tokens.insert((context, app_claims));
 
-        (id2, nonce2)
-    }
-
-    fn derive(material: OscoreInputMaterial, id1: &Id, id2: &Id, nonce1: &Nonce, nonce2: &Nonce) -> OscoreContext {
-        OscoreContext {
-            recipient_id: id2.clone(),
-        }
+        Ok((id2, nonce2))
     }
 }
 
@@ -187,7 +169,8 @@ impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Ha
 
         // Reserve an ID, derive and off we go
 
-        Ok(self.rs.derive_and_insert(pop_key, app_claims, ace_client_recipientid, nonce1))
+        self.rs.derive_and_insert(pop_key, app_claims, ace_client_recipientid, nonce1)
+            .map_err(AuthzInfoError::DeriveError)
     }
     fn estimate_length(&mut self, _: &Self::RequestData) -> usize {
         assert!(MAX_NONCE_LEN < 24);
@@ -230,6 +213,7 @@ impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Ha
             Err(e) => {
                 let code = match e {
                     AuthzInfoError::AuthzInfoError(_) => coap_numbers::code::BAD_REQUEST,
+                    AuthzInfoError::DeriveError(_) => coap_numbers::code::BAD_REQUEST,
                     AuthzInfoError::CriticalOptionsRemain(_) => coap_numbers::code::BAD_OPTION,
                     AuthzInfoError::BadMethod => coap_numbers::code::METHOD_NOT_ALLOWED,
                 };
@@ -312,6 +296,7 @@ impl UnprotectedAuthzInfoPost {
 #[derive(Debug)]
 pub enum AuthzInfoError {
     BadMethod,
+    DeriveError(crate::oscore_claims::DeriveError),
     CriticalOptionsRemain(CriticalOptionsRemain),
     AuthzInfoError(&'static str),
 }
