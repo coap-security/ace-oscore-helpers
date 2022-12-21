@@ -138,6 +138,12 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
         
         let UnprotectedAuthzInfoPost { access_token, nonce1, ace_client_recipientid } = UnprotectedAuthzInfoPost::parse(message.payload())?;
 
+        let mut access_token = access_token.as_slice();
+        if access_token.get(0) ==  Some(&0xd0) {
+            // tagged as Encrypt0 (workaround for https://github.com/google/coset/pull/59)
+            access_token = &access_token[1..];
+        }
+
         let mut rs = (self.rs)()
             .ok_or(AuthzInfoError::RsCurrentlyUnavailable)?;
         let rs = rs.deref_mut();
