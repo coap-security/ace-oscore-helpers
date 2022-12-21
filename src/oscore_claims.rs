@@ -138,6 +138,8 @@ mod for_liboscore {
         // ciborium in its current form, alloc isn't going away anyway. Once it does, it's trivial to
         // do the switch (for then it'll also have an implementation or heapless Vec):
         //
+        // Workaround for https://github.com/enarx/ciborium/issues/66
+        //
         // let mut combined_salt = heapless::Vec::<u8, MAX_COMBINED_SALT>::new();
         let mut combined_salt = alloc::vec::Vec::with_capacity(MAX_COMBINED_SALT);
         {
