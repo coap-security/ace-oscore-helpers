@@ -92,7 +92,7 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
                                                              // the length is wrong)
         let id2 = self.take_id2();
 
-        let context = crate::oscore_claims::derive(material, &id1, &id2, &nonce1, &nonce2)?;
+        let context = crate::oscore_claims::derive(material, &nonce1, &nonce2, &id1, &id2)?;
         self.tokens.insert((context, app_claims));
 
         Ok((id2, nonce2))
