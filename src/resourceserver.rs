@@ -118,13 +118,6 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
     }
 }
 
-// from RFC9203
-const ACCESS_TOKEN: u64 = 1;
-const NONCE1: u64 = 40;
-const NONCE2: u64 = 42;
-const ACE_CLIENT_RECIPIENTID: u64 = 43;
-const ACE_SERVER_RECIPIENTID: u64 = 44;
-
 impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> coap_handler::Handler for UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF> {
     type RequestData = Result<(Id, Nonce), AuthzInfoError>;
 
@@ -206,9 +199,9 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
                 use ciborium_io::Write;
                 let mut encoder = Encoder::from(full_payload);
                 encoder.push(Header::Map(Some(2))).unwrap();
-                encoder.push(Header::Positive(NONCE2)).unwrap();
+                encoder.push(Header::Positive(crate::NONCE2)).unwrap();
                 encoder.bytes(&nonce, None).unwrap();
-                encoder.push(Header::Positive(ACE_SERVER_RECIPIENTID)).unwrap();
+                encoder.push(Header::Positive(crate::ACE_SERVER_RECIPIENTID)).unwrap();
                 encoder.bytes(&id, None).unwrap();
                 encoder.flush().unwrap();
 
@@ -274,13 +267,13 @@ impl UnprotectedAuthzInfoPost {
 
         for _ in 0..3 {
             match decoder.pull() {
-                Ok(ciborium_ll::Header::Positive(ACCESS_TOKEN)) => {
+                Ok(ciborium_ll::Header::Positive(crate::ACCESS_TOKEN)) => {
                     access_token = Some(pull_into_bytes(&mut decoder)?);
                 }
-                Ok(ciborium_ll::Header::Positive(NONCE1)) => {
+                Ok(ciborium_ll::Header::Positive(crate::NONCE1)) => {
                     nonce1 = Some(pull_into_bytes(&mut decoder)?);
                 }
-                Ok(ciborium_ll::Header::Positive(ACE_CLIENT_RECIPIENTID)) => {
+                Ok(ciborium_ll::Header::Positive(crate::ACE_CLIENT_RECIPIENTID)) => {
                     ace_client_recipientid = Some(pull_into_bytes(&mut decoder)?);
                 }
                 _ => return Err(AuthzInfoError::AuthzInfoError("Unknown key"))
