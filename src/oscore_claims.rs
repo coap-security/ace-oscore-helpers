@@ -40,3 +40,127 @@ pub fn extract_oscore(mut claims: coset::cwt::ClaimsSet) -> Result<coset::Oscore
         _ => Err(NoOscoreCnf),
     }
 }
+
+#[cfg(feature = "liboscore")]
+mod for_liboscore {
+    extern crate alloc;
+
+    // Both are limited to lengths encodable in 1+1 in CBOR (any values > 255 would need adjustments in
+    // MAX_SALT calculation).
+    const NONCE_MAX: usize = 32;
+    const INPUT_SALT_MAX: usize = 32;
+
+    #[derive(Debug, Copy, Clone)]
+    #[non_exhaustive]
+    pub enum DeriveError {
+        NonceTooLong,
+        InputSaltTooLong,
+        IdTooLong,
+        AlgorithmUnknown,
+        EqualIds,
+        WrongOscoreVersion,
+        MissingEssentials,
+    }
+
+    impl From<liboscore::AlgorithmNotSupported> for DeriveError {
+        fn from(_: liboscore::AlgorithmNotSupported) -> Self {
+            DeriveError::AlgorithmUnknown
+        }
+    }
+
+    impl From<liboscore::DeriveError> for DeriveError {
+        fn from(_: liboscore::DeriveError) -> Self {
+            // Could be the sender/recipient ID or the ID context
+            DeriveError::IdTooLong
+        }
+    }
+
+    pub fn derive(
+        material: coset::OscoreInputMaterial,
+        nonce1: &[u8],
+        nonce2: &[u8],
+        sender_id: &[u8],
+        recipient_id: &[u8],
+        )
+    -> Result<liboscore::PrimitiveContext, DeriveError>
+    {
+        use coset::iana::EnumI64;
+
+        let version = material.version.as_ref().map(|&v| v.try_into()).unwrap_or(Ok(1));
+        let master_secret = material.ms.as_ref().map(|s| s.as_slice())
+            .ok_or(DeriveError::MissingEssentials)?;
+        fn alg_as_i32(alg: coset::Algorithm) -> Option<i32> {
+            i32::try_from(match alg {
+                coset::RegisteredLabelWithPrivate::Assigned(a) => a.to_i64(),
+                coset::RegisteredLabelWithPrivate::PrivateUse(i) => i,
+                coset::RegisteredLabelWithPrivate::Text(_) => return None
+            }).ok()
+        }
+        let hkdf = liboscore::HkdfAlg::from_number(
+            material.hkdf
+                .map(alg_as_i32)
+                .unwrap_or(Some(5)) // FIXME: magic constant; OSCORE says it's SHA-256 but doesn't give it
+                                    // by number
+                .ok_or(DeriveError::AlgorithmUnknown)?
+                )?;
+        let aead = liboscore::AeadAlg::from_number(
+            material.alg
+                .map(alg_as_i32)
+                .unwrap_or(Some(10)) // FIXME: magic constant; OSCORE's default algorithm
+                .ok_or(DeriveError::AlgorithmUnknown)?
+                )?;
+        let input_salt = material.salt.as_ref().map(|s| s.as_slice()).unwrap_or(b"");
+        let context_id = material.context_id.as_ref().map(|s| s.as_slice());
+
+        // Let's do consistent input validation -- then we can simply unwrap later, plus we get
+        // deterministic errors and don't fail just because the other components happened to be so
+        // short things fit.
+        if nonce1.len() > NONCE_MAX || nonce2.len() > NONCE_MAX {
+            return Err(DeriveError::NonceTooLong);
+        }
+
+        if version != Ok(1) {
+            return Err(DeriveError::WrongOscoreVersion);
+        }
+
+        if input_salt.len() > INPUT_SALT_MAX {
+            return Err(DeriveError::InputSaltTooLong);
+        }
+
+        if sender_id == recipient_id {
+            return Err(DeriveError::EqualIds);
+        }
+
+        // Not trying to shave the few bytes off the stack usage that could be freed if values for
+        // NONCE_MAX etc were < 24
+        const MAX_COMBINED_SALT: usize = 2 + INPUT_SALT_MAX + 2 + NONCE_MAX + 2 + NONCE_MAX;
+        // ciborium_ll::Write is not implemented for heapless::Vec -- and as long as we depend on
+        // ciborium in its current form, alloc isn't going away anyway. Once it does, it's trivial to
+        // do the switch (for then it'll also have an implementation or heapless Vec):
+        //
+        // let mut combined_salt = heapless::Vec::<u8, MAX_COMBINED_SALT>::new();
+        let mut combined_salt = alloc::vec::Vec::with_capacity(MAX_COMBINED_SALT);
+        {
+            // Following RFC 9203 Sectioin 4.3
+            let mut salt_encoder = ciborium_ll::Encoder::from(&mut combined_salt);
+            salt_encoder.bytes(input_salt, None).unwrap();
+            salt_encoder.bytes(nonce1, None).unwrap();
+            salt_encoder.bytes(nonce2, None).unwrap();
+        }
+
+        let immutables = liboscore::PrimitiveImmutables::derive(
+            hkdf,
+            master_secret,
+            &combined_salt,
+            context_id,
+            aead,
+            sender_id,
+            recipient_id,
+        )?;
+
+        Ok(liboscore::PrimitiveContext::new_from_fresh_material(immutables))
+    }
+}
+
+#[cfg(feature = "liboscore")]
+pub use for_liboscore::{derive, DeriveError};

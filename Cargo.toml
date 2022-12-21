@@ -31,6 +31,8 @@ aead = { version = "^0.5", features = [ "alloc" ] }
 hex-literal = "0.3"
 heapless = { version = "0.7.16", features = [ "defmt-impl" ] }
 
+liboscore = { path = "../../../../../git/liboscore/rust/liboscore/", optional = true }
+
 # just to derive the right things
 defmt = "*"
 
