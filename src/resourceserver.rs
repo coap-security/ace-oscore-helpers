@@ -1,3 +1,5 @@
+use core::ops::DerefMut;
+
 use coset::OscoreInputMaterial;
 use coap_message::{ReadableMessage, MutableWritableMessage, MessageOption};
 use coap_handler_implementations::option_processing::CriticalOptionsRemain;
@@ -102,12 +104,16 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
 ///
 /// The protected /authz-info endpoint (to which tokens are posted for updating) is currently not
 /// implemented (but would be implemented in a different struct).
-pub struct UnprotectedAuthzInfoEndpoint<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> {
-    rs: &'a mut ResourceServer<APPCLAIMS>,
+///
+/// Given that the endpoint may live independently of the handler, we can't keep a mutable
+/// reference to it. Instead, we store a closure that grants us exclusive access to it, typically
+/// backed by a platform dependent mutex.
+pub struct UnprotectedAuthzInfoEndpoint<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> {
+    rs: RS_ACCESS,
 }
 
-impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> UnprotectedAuthzInfoEndpoint<'a, APPCLAIMS> {
-    pub fn new(rs: &'a mut ResourceServer<APPCLAIMS>) -> Self {
+impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF> {
+    pub fn new(rs: RS_ACCESS) -> Self {
         Self { rs }
     }
 }
@@ -119,7 +125,7 @@ const NONCE2: u64 = 42;
 const ACE_CLIENT_RECIPIENTID: u64 = 43;
 const ACE_SERVER_RECIPIENTID: u64 = 44;
 
-impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Handler for UnprotectedAuthzInfoEndpoint<'a, APPCLAIMS> {
+impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> coap_handler::Handler for UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF> {
     type RequestData = Result<(Id, Nonce), AuthzInfoError>;
 
     fn extract_request_data(&mut self, message: &impl ReadableMessage) -> Self::RequestData {
@@ -139,11 +145,15 @@ impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Ha
         
         let UnprotectedAuthzInfoPost { access_token, nonce1, ace_client_recipientid } = UnprotectedAuthzInfoPost::parse(message.payload())?;
 
+        let mut rs = (self.rs)()
+            .ok_or(AuthzInfoError::RsCurrentlyUnavailable)?;
+        let rs = rs.deref_mut();
+
         use coset::CborSerializable;
         let envelope = coset::CoseEncrypt0::from_slice(&access_token)?;
         let iv: &[u8] = &envelope.unprotected.iv;
         let mut cipher: crate::aesccm::RustCryptoCcmCoseCipher::<aes::Aes256,  aead::generic_array::typenum::U16, aead::generic_array::typenum::U13> = crate::aesccm::RustCryptoCcmCoseCipher::new(
-            self.rs.as_data.key,
+            rs.as_data.key,
             *aead::generic_array::GenericArray::from_slice(&iv),
             );
 
@@ -151,12 +161,12 @@ impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Ha
 
         // Check if the claims are compatible with us
 
-        if claims.issuer.as_ref().map(|s| Some(s.as_ref()) == self.rs.as_data.issuer) == Some(false) {
+        if claims.issuer.as_ref().map(|s| Some(s.as_ref()) == rs.as_data.issuer) == Some(false) {
             // There's no hard rule saying we have to reject, but it's good practice.
             return Err(AuthzInfoError::AuthzInfoError("Not from our AS"));
         }
         
-        if claims.audience.as_ref().map(|s| Some(s.as_ref()) == self.rs.as_data.audience) == Some(false) {
+        if claims.audience.as_ref().map(|s| Some(s.as_ref()) == rs.as_data.audience) == Some(false) {
             // We have to reject if it's not us based on RFC7519 Section 4.1.3.
             return Err(AuthzInfoError::AuthzInfoError("Not for us"));
         }
@@ -169,7 +179,7 @@ impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Ha
 
         // Reserve an ID, derive and off we go
 
-        self.rs.derive_and_insert(pop_key, app_claims, ace_client_recipientid, nonce1)
+        rs.derive_and_insert(pop_key, app_claims, ace_client_recipientid, nonce1)
             .map_err(AuthzInfoError::DeriveError)
     }
     fn estimate_length(&mut self, _: &Self::RequestData) -> usize {
@@ -216,6 +226,7 @@ impl<'a, APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>> coap_handler::Ha
                     AuthzInfoError::DeriveError(_) => coap_numbers::code::BAD_REQUEST,
                     AuthzInfoError::CriticalOptionsRemain(_) => coap_numbers::code::BAD_OPTION,
                     AuthzInfoError::BadMethod => coap_numbers::code::METHOD_NOT_ALLOWED,
+                    AuthzInfoError::RsCurrentlyUnavailable => coap_numbers::code::SERVICE_UNAVAILABLE,
                 };
 
                 message.set_code(code.try_into().map_err(|_| ()).unwrap());
@@ -298,6 +309,7 @@ pub enum AuthzInfoError {
     BadMethod,
     DeriveError(crate::oscore_claims::DeriveError),
     CriticalOptionsRemain(CriticalOptionsRemain),
+    RsCurrentlyUnavailable,
     AuthzInfoError(&'static str),
 }
 
