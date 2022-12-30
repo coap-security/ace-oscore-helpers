@@ -97,6 +97,20 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
 
         Ok((id2, nonce2))
     }
+
+    /// Find the (unique, if the instance was well maintained) OSCORE context and associated
+    /// application claims associated with the IDs (typically recipient ID, may also but does not
+    /// currently use the context) in an OSCORE option.
+    ///
+    /// This returns mutable references to the context (because that needs to be mutated during
+    /// replay protection), and to the claims (because interfaces such a currently not implemented
+    /// ProtectedAuthzInfoEndpoint may alter the credentials).
+    pub fn look_up_context(&mut self, oscore_option: &liboscore::OscoreOption) -> Option<(&mut liboscore::PrimitiveContext, &mut APPCLAIMS)> {
+        // Requests without KID just won't ever find a context
+        let kid = oscore_option.kid()?;
+        let (context, claims) = self.tokens.find(|(context, _)| context.recipient_id() == kid)?;
+        Some((context, claims))
+    }
 }
 
 /// The /authz-info resource as accessed without OSCORE protection (to which tokens with nonce and
