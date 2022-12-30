@@ -50,7 +50,7 @@ mod for_liboscore {
     const NONCE_MAX: usize = 32;
     const INPUT_SALT_MAX: usize = 32;
 
-    #[derive(Debug, Copy, Clone)]
+    #[derive(Debug, Copy, Clone, defmt::Format)]
     #[non_exhaustive]
     pub enum DeriveError {
         NonceTooLong,

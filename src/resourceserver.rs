@@ -223,7 +223,7 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
                 let code = match e {
                     AuthzInfoError::AuthzInfoError(_) => coap_numbers::code::BAD_REQUEST,
                     AuthzInfoError::DeriveError(_) => coap_numbers::code::BAD_REQUEST,
-                    AuthzInfoError::CriticalOptionsRemain(_) => coap_numbers::code::BAD_OPTION,
+                    AuthzInfoError::CriticalOptionsRemain => coap_numbers::code::BAD_OPTION,
                     AuthzInfoError::BadMethod => coap_numbers::code::METHOD_NOT_ALLOWED,
                     AuthzInfoError::RsCurrentlyUnavailable => coap_numbers::code::SERVICE_UNAVAILABLE,
                 };
@@ -303,17 +303,17 @@ impl UnprotectedAuthzInfoPost {
 ///
 /// The string is mostly used for internal diagnostics, though it may optionally be sent in a
 /// diagnostic payload.
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum AuthzInfoError {
     BadMethod,
     DeriveError(crate::oscore_claims::DeriveError),
-    CriticalOptionsRemain(CriticalOptionsRemain),
+    CriticalOptionsRemain,
     RsCurrentlyUnavailable,
     AuthzInfoError(&'static str),
 }
 
 impl From<CriticalOptionsRemain> for AuthzInfoError {
-    fn from(s: CriticalOptionsRemain) -> Self { AuthzInfoError::CriticalOptionsRemain(s) }
+    fn from(_: CriticalOptionsRemain) -> Self { AuthzInfoError::CriticalOptionsRemain }
 }
 
 impl<T> From<ciborium_ll::Error<T>> for AuthzInfoError
