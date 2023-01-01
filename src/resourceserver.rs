@@ -68,6 +68,9 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     /// Produce an id2 value that is not in current use
     ///
     /// This is infallible, because the token pool is always smaller than the ID space
+    ///
+    /// When called in succession, this produces different IDs (without actually wasting any -- the
+    /// skipped ones will be used when the internals wrap)
     fn take_id2(&mut self) -> Id {
         loop {
             self.last_id2 += 1;
@@ -90,7 +93,12 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     fn derive_and_insert(&mut self, material: OscoreInputMaterial, app_claims: APPCLAIMS, id1: Id, nonce1: Nonce) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
         let nonce2 = Nonce::try_from([4].as_ref()).unwrap(); // FIXME DANGER (also won't work as
                                                              // the length is wrong)
-        let id2 = self.take_id2();
+        let mut id2 = self.take_id2();
+        if id2 == id1 {
+            // If it's still identical, then take_id2 is broken in that it doesn't cycle as
+            // advertised (and derivation will fail because it checks that too)
+            id2 = self.take_id2();
+        }
 
         let context = crate::oscore_claims::derive(material, &nonce1, &nonce2, &id1, &id2)?;
         self.tokens.insert((context, app_claims));
