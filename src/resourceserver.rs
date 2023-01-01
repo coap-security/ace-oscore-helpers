@@ -77,7 +77,7 @@ impl<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<AppCl
         loop {
             self.last_id2 += 1;
             let id = Id::try_from([self.last_id2.0].as_ref()).unwrap();
-            if self.tokens.iter().all(|(osc, _)| osc.recipient_id() != &id) {
+            if self.tokens.iter().all(|(osc, _)| osc.recipient_id() != id) {
                 return id;
             }
         }
@@ -192,7 +192,7 @@ impl<
         } = UnprotectedAuthzInfoPost::parse(message.payload())?;
 
         let mut access_token = access_token.as_slice();
-        if access_token.get(0) == Some(&0xd0) {
+        if access_token.first() == Some(&0xd0) {
             // tagged as Encrypt0 (workaround for https://github.com/google/coset/pull/59)
             access_token = &access_token[1..];
         }
@@ -201,7 +201,7 @@ impl<
         let rs = rs.deref_mut();
 
         use coset::CborSerializable;
-        let envelope = coset::CoseEncrypt0::from_slice(&access_token)?;
+        let envelope = coset::CoseEncrypt0::from_slice(access_token)?;
         let iv: &[u8] = &envelope.unprotected.iv;
         let mut cipher: crate::aesccm::RustCryptoCcmCoseCipher<
             aes::Aes256,
@@ -209,7 +209,7 @@ impl<
             aead::generic_array::typenum::U13,
         > = crate::aesccm::RustCryptoCcmCoseCipher::new(
             rs.as_data.key,
-            *aead::generic_array::GenericArray::from_slice(&iv),
+            *aead::generic_array::GenericArray::from_slice(iv),
         );
 
         let claims = dcaf::decrypt_access_token(&access_token.to_vec(), &mut cipher, Some(&[]))?;

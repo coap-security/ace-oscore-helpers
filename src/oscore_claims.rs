@@ -99,8 +99,7 @@ mod for_liboscore {
             .unwrap_or(Ok(1));
         let master_secret = material
             .ms
-            .as_ref()
-            .map(|s| s.as_slice())
+            .as_deref()
             .ok_or(DeriveError::MissingEssentials)?;
         fn alg_as_i32(alg: coset::Algorithm) -> Option<i32> {
             i32::try_from(match alg {
@@ -125,8 +124,8 @@ mod for_liboscore {
                 .unwrap_or(Some(10)) // FIXME: magic constant; OSCORE's default algorithm
                 .ok_or(DeriveError::AlgorithmUnknown)?,
         )?;
-        let input_salt = material.salt.as_ref().map(|s| s.as_slice()).unwrap_or(b"");
-        let context_id = material.context_id.as_ref().map(|s| s.as_slice());
+        let input_salt = material.salt.as_deref().unwrap_or(b"");
+        let context_id = material.context_id.as_deref();
 
         // Let's do consistent input validation -- then we can simply unwrap later, plus we get
         // deterministic errors and don't fail just because the other components happened to be so
