@@ -47,18 +47,18 @@ pub struct RsAsSharedData {
 /// If more than just the RS produces IDs, this could take a prefix from the environment (or any
 /// other means of sharding) to also allow having OSCORE recipient IDs not from here.
 #[derive(Debug)]
-pub struct ResourceServer<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> {
+pub struct ResourceServer<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> {
     last_id2: core::num::Wrapping<u8>,
     // Note that for the relevant MAX_TOKENS, there'd be no gains from an indexed data structure
     //
     // TBD: We could store whether the token was used for successful communication, and then ensure
     // that some previously-used tokens are not evicted before unverified ones.
-    tokens: uluru::LRUCache<(liboscore::PrimitiveContext, APPCLAIMS), MAX_TOKENS>,
+    tokens: uluru::LRUCache<(liboscore::PrimitiveContext, AppClaims), MAX_TOKENS>,
     // It might also make sense to have these iterable
     as_data: RsAsSharedData,
 }
 
-impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCLAIMS> {
+impl<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<AppClaims> {
     pub fn new_with_association(as_data: RsAsSharedData) -> Self {
         Self {
             last_id2: Default::default(), // any is good
@@ -95,7 +95,7 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     fn derive_and_insert(
         &mut self,
         material: OscoreInputMaterial,
-        app_claims: APPCLAIMS,
+        app_claims: AppClaims,
         id1: Id,
         nonce1: Nonce,
     ) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
@@ -124,7 +124,7 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     pub fn look_up_context(
         &mut self,
         oscore_option: &liboscore::OscoreOption,
-    ) -> Option<(&mut liboscore::PrimitiveContext, &mut APPCLAIMS)> {
+    ) -> Option<(&mut liboscore::PrimitiveContext, &mut AppClaims)> {
         // Requests without KID just won't ever find a context
         let kid = oscore_option.kid()?;
         let (context, claims) = self
@@ -144,29 +144,29 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
 /// reference to it. Instead, we store a closure that grants us exclusive access to it, typically
 /// backed by a platform dependent mutex.
 pub struct UnprotectedAuthzInfoEndpoint<
-    APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
-    RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>,
-    RS_DEREF: DerefMut<Target = ResourceServer<APPCLAIMS>>,
+    AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+    RsAccess: for<'b> FnMut() -> Option<RsDeref>,
+    RsDeref: DerefMut<Target = ResourceServer<AppClaims>>,
 > {
-    rs: RS_ACCESS,
+    rs: RsAccess,
 }
 
 impl<
-        APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
-        RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>,
-        RS_DEREF: DerefMut<Target = ResourceServer<APPCLAIMS>>,
-    > UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF>
+        AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+        RsAccess: for<'b> FnMut() -> Option<RsDeref>,
+        RsDeref: DerefMut<Target = ResourceServer<AppClaims>>,
+    > UnprotectedAuthzInfoEndpoint<AppClaims, RsAccess, RsDeref>
 {
-    pub fn new(rs: RS_ACCESS) -> Self {
+    pub fn new(rs: RsAccess) -> Self {
         Self { rs }
     }
 }
 
 impl<
-        APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
-        RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>,
-        RS_DEREF: DerefMut<Target = ResourceServer<APPCLAIMS>>,
-    > coap_handler::Handler for UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF>
+        AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+        RsAccess: for<'b> FnMut() -> Option<RsDeref>,
+        RsDeref: DerefMut<Target = ResourceServer<AppClaims>>,
+    > coap_handler::Handler for UnprotectedAuthzInfoEndpoint<AppClaims, RsAccess, RsDeref>
 {
     type RequestData = Result<(Id, Nonce), AuthzInfoError>;
 
@@ -236,7 +236,7 @@ impl<
             return Err(AuthzInfoError::AuthzInfoError("Not for us"));
         }
 
-        let app_claims: APPCLAIMS = (&claims)
+        let app_claims: AppClaims = (&claims)
             .try_into()
             .map_err(|_| AuthzInfoError::AuthzInfoError("No valid application claims"))?;
 
