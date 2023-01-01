@@ -354,9 +354,9 @@ dependencies = [
 
 [[package]]
 name = "coap-message-utils"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02fe8ea413d48187bb8dab5e7f153e1d6bd61dfd6284a22545130cc86483fa19"
+checksum = "af83241a72558f8b529ed7f29693a1621f66d9feced1a040af9db68f374e1981"
 dependencies = [
  "coap-message",
  "heapless 0.5.6",
@@ -835,6 +835,7 @@ dependencies = [
  "cbindgen",
  "cc",
  "coap-message",
+ "coap-message-utils 0.2.2",
  "liboscore-cryptobackend",
  "liboscore-msgbackend",
  "pretty-hex",
@@ -862,7 +863,7 @@ name = "liboscore-msgbackend"
 version = "0.1.0"
 dependencies = [
  "coap-message",
- "coap-message-utils 0.2.1",
+ "coap-message-utils 0.2.2",
 ]
 
 [[package]]

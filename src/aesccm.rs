@@ -13,10 +13,10 @@ use alloc::vec::Vec;
  */
 
 use aead::generic_array::{ArrayLength, GenericArray};
-use aead::{Aead, Key, Payload, KeyInit};
+use aead::{Aead, Key, KeyInit, Payload};
+use aes::cipher::{Block, BlockCipher, BlockEncrypt};
 use ccm::consts::U16;
 use ccm::{Ccm, NonceSize, TagSize};
-use aes::cipher::{Block, BlockCipher, BlockEncrypt};
 use coset::{Algorithm, Header};
 use dcaf::error::CoseCipherError;
 use dcaf::token::CoseCipherCommon;
@@ -40,7 +40,10 @@ where
     M: ArrayLength<u8> + TagSize,
     N: ArrayLength<u8> + NonceSize,
 {
-    pub fn new(key: Key<Ccm<C, M, N>>, nonce: GenericArray<u8, N>) -> RustCryptoCcmCoseCipher<C, M, N> {
+    pub fn new(
+        key: Key<Ccm<C, M, N>>,
+        nonce: GenericArray<u8, N>,
+    ) -> RustCryptoCcmCoseCipher<C, M, N> {
         RustCryptoCcmCoseCipher { key, nonce }
     }
 }
@@ -82,7 +85,13 @@ where
     fn encrypt(&mut self, plaintext: &[u8], aad: &[u8]) -> Vec<u8> {
         let ccm_instance = Ccm::<C, M, N>::new(&self.key);
         ccm_instance
-            .encrypt(&self.nonce, Payload { msg: plaintext, aad })
+            .encrypt(
+                &self.nonce,
+                Payload {
+                    msg: plaintext,
+                    aad,
+                },
+            )
             .expect("error during encryption")
     }
 
@@ -93,7 +102,13 @@ where
     ) -> Result<Vec<u8>, CoseCipherError<<Self as CoseCipherCommon>::Error>> {
         let ccm_instance = Ccm::<C, M, N>::new(&self.key);
         ccm_instance
-            .decrypt(&self.nonce, Payload { msg: ciphertext, aad: aad })
+            .decrypt(
+                &self.nonce,
+                Payload {
+                    msg: ciphertext,
+                    aad: aad,
+                },
+            )
             .map_err(|_e| CoseCipherError::DecryptionFailure)
     }
 }

@@ -11,8 +11,8 @@
 //! {42: b'\x04', 44: b'\x02'}
 //! ```
 
-use embedded_nal::UdpFullStack;
 use embedded_nal::UdpClientStack;
+use embedded_nal::UdpFullStack;
 
 #[derive(Debug)]
 struct AppClaims(String);
@@ -36,17 +36,22 @@ fn main() {
         key: aead::generic_array::arr![u8; 'a' as u8, 'b' as u8, 'c' as u8, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     };
 
-    let rs = ace_oscore_helpers::resourceserver::ResourceServer::<AppClaims>::new_with_association(association);
+    let rs = ace_oscore_helpers::resourceserver::ResourceServer::<AppClaims>::new_with_association(
+        association,
+    );
     let rs = core::cell::RefCell::new(rs);
 
     stack.bind(&mut sock, 5683).expect("Can't bind to port");
 
     loop {
-        let authz_info = ace_oscore_helpers::resourceserver::UnprotectedAuthzInfoEndpoint::new(|| rs.try_borrow_mut().ok());
+        let authz_info =
+            ace_oscore_helpers::resourceserver::UnprotectedAuthzInfoEndpoint::new(|| {
+                rs.try_borrow_mut().ok()
+            });
 
         use coap_handler_implementations::HandlerBuilder;
-        let mut handler = coap_handler_implementations::new_dispatcher()
-            .at(&["authz-info"], authz_info);
+        let mut handler =
+            coap_handler_implementations::new_dispatcher().at(&["authz-info"], authz_info);
 
         match embedded_nal_minimal_coapserver::poll(&mut stack, &mut sock, &mut handler) {
             Err(embedded_nal::nb::Error::WouldBlock) => {

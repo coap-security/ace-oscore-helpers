@@ -5,9 +5,9 @@
 #![no_std]
 
 pub mod aesccm;
+pub mod oscore_claims;
 #[cfg(feature = "liboscore")]
 pub mod resourceserver;
-pub mod oscore_claims;
 
 // FIXME: Provide a means to set up COSE keys rather than constructing keys manually
 pub use aead;

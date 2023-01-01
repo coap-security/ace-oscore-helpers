@@ -12,14 +12,19 @@ pub struct NoOscoreCnf;
 
 // This takes ownership of a ClaimsSet because the i128 keyed map version dcaf works with contains
 // owned Value items.
-pub fn extract_oscore(mut claims: coset::cwt::ClaimsSet) -> Result<coset::OscoreInputMaterial, NoOscoreCnf> {
-    let mut cnfs = claims.rest.drain(..)
-        .filter(|(key, _)| matches!(key, coset::RegisteredLabelWithPrivate::Assigned(coset::iana::CwtClaimName::Cnf)));
+pub fn extract_oscore(
+    mut claims: coset::cwt::ClaimsSet,
+) -> Result<coset::OscoreInputMaterial, NoOscoreCnf> {
+    let mut cnfs = claims.rest.drain(..).filter(|(key, _)| {
+        matches!(
+            key,
+            coset::RegisteredLabelWithPrivate::Assigned(coset::iana::CwtClaimName::Cnf)
+        )
+    });
 
     // That's all a mouthful given that the parsing CDDL would be a two-liner...
 
-    let (_, cnf) = cnfs.next()
-        .ok_or(NoOscoreCnf)?;
+    let (_, cnf) = cnfs.next().ok_or(NoOscoreCnf)?;
     if cnfs.next().is_some() {
         // Duplicate key
         return Err(NoOscoreCnf);
@@ -27,7 +32,10 @@ pub fn extract_oscore(mut claims: coset::cwt::ClaimsSet) -> Result<coset::Oscore
 
     let cnf = match cnf {
         // This is mainly impedance matching between how dcaf treats maps, and how coset uses Value
-        ciborium::value::Value::Map(mut v) => v.drain(..).map(|(k, v)| (k.as_integer().unwrap().into(), v)).collect(),
+        ciborium::value::Value::Map(mut v) => v
+            .drain(..)
+            .map(|(k, v)| (k.as_integer().unwrap().into(), v))
+            .collect(),
         _ => return Err(NoOscoreCnf),
     };
 
@@ -81,34 +89,42 @@ mod for_liboscore {
         nonce2: &[u8],
         sender_id: &[u8],
         recipient_id: &[u8],
-        )
-    -> Result<liboscore::PrimitiveContext, DeriveError>
-    {
+    ) -> Result<liboscore::PrimitiveContext, DeriveError> {
         use coset::iana::EnumI64;
 
-        let version = material.version.as_ref().map(|&v| v.try_into()).unwrap_or(Ok(1));
-        let master_secret = material.ms.as_ref().map(|s| s.as_slice())
+        let version = material
+            .version
+            .as_ref()
+            .map(|&v| v.try_into())
+            .unwrap_or(Ok(1));
+        let master_secret = material
+            .ms
+            .as_ref()
+            .map(|s| s.as_slice())
             .ok_or(DeriveError::MissingEssentials)?;
         fn alg_as_i32(alg: coset::Algorithm) -> Option<i32> {
             i32::try_from(match alg {
                 coset::RegisteredLabelWithPrivate::Assigned(a) => a.to_i64(),
                 coset::RegisteredLabelWithPrivate::PrivateUse(i) => i,
-                coset::RegisteredLabelWithPrivate::Text(_) => return None
-            }).ok()
+                coset::RegisteredLabelWithPrivate::Text(_) => return None,
+            })
+            .ok()
         }
         let hkdf = liboscore::HkdfAlg::from_number(
-            material.hkdf
+            material
+                .hkdf
                 .map(alg_as_i32)
                 .unwrap_or(Some(5)) // FIXME: magic constant; OSCORE says it's SHA-256 but doesn't give it
-                                    // by number
-                .ok_or(DeriveError::AlgorithmUnknown)?
-                )?;
+                // by number
+                .ok_or(DeriveError::AlgorithmUnknown)?,
+        )?;
         let aead = liboscore::AeadAlg::from_number(
-            material.alg
+            material
+                .alg
                 .map(alg_as_i32)
                 .unwrap_or(Some(10)) // FIXME: magic constant; OSCORE's default algorithm
-                .ok_or(DeriveError::AlgorithmUnknown)?
-                )?;
+                .ok_or(DeriveError::AlgorithmUnknown)?,
+        )?;
         let input_salt = material.salt.as_ref().map(|s| s.as_slice()).unwrap_or(b"");
         let context_id = material.context_id.as_ref().map(|s| s.as_slice());
 
@@ -160,7 +176,9 @@ mod for_liboscore {
             recipient_id,
         )?;
 
-        Ok(liboscore::PrimitiveContext::new_from_fresh_material(immutables))
+        Ok(liboscore::PrimitiveContext::new_from_fresh_material(
+            immutables,
+        ))
     }
 }
 

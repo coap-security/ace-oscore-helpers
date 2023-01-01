@@ -1,8 +1,8 @@
 use core::ops::DerefMut;
 
-use coset::OscoreInputMaterial;
-use coap_message::{ReadableMessage, MutableWritableMessage, MessageOption};
 use coap_handler_implementations::option_processing::CriticalOptionsRemain;
+use coap_message::{MessageOption, MutableWritableMessage, ReadableMessage};
+use coset::OscoreInputMaterial;
 
 /// The CoaP Content-Format for application/ace+cbor (per RFC 9200)
 const CONTENT_FORMAT_ACE_CBOR: u16 = 19;
@@ -35,7 +35,9 @@ pub struct RsAsSharedData {
     // FIXME: Introduce proper constructor once types are decided
     pub issuer: Option<&'static str>,
     pub audience: Option<&'static str>,
-    pub key: aead::Key<ccm::Ccm<aes::Aes256,  aead::generic_array::typenum::U16, aead::generic_array::typenum::U13>>,
+    pub key: aead::Key<
+        ccm::Ccm<aes::Aes256, aead::generic_array::typenum::U16, aead::generic_array::typenum::U13>,
+    >,
 }
 
 /// ...
@@ -60,7 +62,7 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     pub fn new_with_association(as_data: RsAsSharedData) -> Self {
         Self {
             last_id2: Default::default(), // any is good
-            tokens: Default::default(), // empty
+            tokens: Default::default(),   // empty
             as_data,
         }
     }
@@ -90,7 +92,13 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     ///
     /// If the material is recognized, its old version could be evicted (as suggested in RFC9203
     /// right above 4.2.1).
-    fn derive_and_insert(&mut self, material: OscoreInputMaterial, app_claims: APPCLAIMS, id1: Id, nonce1: Nonce) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
+    fn derive_and_insert(
+        &mut self,
+        material: OscoreInputMaterial,
+        app_claims: APPCLAIMS,
+        id1: Id,
+        nonce1: Nonce,
+    ) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
         let nonce2 = Nonce::try_from([4].as_ref()).unwrap(); // FIXME DANGER (also won't work as
                                                              // the length is wrong)
         let mut id2 = self.take_id2();
@@ -113,10 +121,15 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
     /// This returns mutable references to the context (because that needs to be mutated during
     /// replay protection), and to the claims (because interfaces such a currently not implemented
     /// ProtectedAuthzInfoEndpoint may alter the credentials).
-    pub fn look_up_context(&mut self, oscore_option: &liboscore::OscoreOption) -> Option<(&mut liboscore::PrimitiveContext, &mut APPCLAIMS)> {
+    pub fn look_up_context(
+        &mut self,
+        oscore_option: &liboscore::OscoreOption,
+    ) -> Option<(&mut liboscore::PrimitiveContext, &mut APPCLAIMS)> {
         // Requests without KID just won't ever find a context
         let kid = oscore_option.kid()?;
-        let (context, claims) = self.tokens.find(|(context, _)| context.recipient_id() == kid)?;
+        let (context, claims) = self
+            .tokens
+            .find(|(context, _)| context.recipient_id() == kid)?;
         Some((context, claims))
     }
 }
@@ -130,17 +143,31 @@ impl<APPCLAIMS: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<APPCL
 /// Given that the endpoint may live independently of the handler, we can't keep a mutable
 /// reference to it. Instead, we store a closure that grants us exclusive access to it, typically
 /// backed by a platform dependent mutex.
-pub struct UnprotectedAuthzInfoEndpoint<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> {
+pub struct UnprotectedAuthzInfoEndpoint<
+    APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+    RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>,
+    RS_DEREF: DerefMut<Target = ResourceServer<APPCLAIMS>>,
+> {
     rs: RS_ACCESS,
 }
 
-impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF> {
+impl<
+        APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+        RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>,
+        RS_DEREF: DerefMut<Target = ResourceServer<APPCLAIMS>>,
+    > UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF>
+{
     pub fn new(rs: RS_ACCESS) -> Self {
         Self { rs }
     }
 }
 
-impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>, RS_DEREF: DerefMut<Target=ResourceServer<APPCLAIMS>>> coap_handler::Handler for UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF> {
+impl<
+        APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+        RS_ACCESS: for<'b> FnMut() -> Option<RS_DEREF>,
+        RS_DEREF: DerefMut<Target = ResourceServer<APPCLAIMS>>,
+    > coap_handler::Handler for UnprotectedAuthzInfoEndpoint<APPCLAIMS, RS_ACCESS, RS_DEREF>
+{
     type RequestData = Result<(Id, Nonce), AuthzInfoError>;
 
     fn extract_request_data(&mut self, message: &impl ReadableMessage) -> Self::RequestData {
@@ -149,54 +176,71 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
         }
 
         use coap_handler_implementations::option_processing::OptionsExt;
-        message.options()
+        message
+            .options()
             .filter(|o| match (o.number(), o.value_uint()) {
                 (coap_numbers::option::CONTENT_FORMAT, Some(CONTENT_FORMAT_ACE_CBOR)) => false,
                 (coap_numbers::option::ACCEPT, Some(CONTENT_FORMAT_ACE_CBOR)) => false,
-                _ => true
+                _ => true,
             })
             .ignore_elective_others()?;
 
-        
-        let UnprotectedAuthzInfoPost { access_token, nonce1, ace_client_recipientid } = UnprotectedAuthzInfoPost::parse(message.payload())?;
+        let UnprotectedAuthzInfoPost {
+            access_token,
+            nonce1,
+            ace_client_recipientid,
+        } = UnprotectedAuthzInfoPost::parse(message.payload())?;
 
         let mut access_token = access_token.as_slice();
-        if access_token.get(0) ==  Some(&0xd0) {
+        if access_token.get(0) == Some(&0xd0) {
             // tagged as Encrypt0 (workaround for https://github.com/google/coset/pull/59)
             access_token = &access_token[1..];
         }
 
-        let mut rs = (self.rs)()
-            .ok_or(AuthzInfoError::RsCurrentlyUnavailable)?;
+        let mut rs = (self.rs)().ok_or(AuthzInfoError::RsCurrentlyUnavailable)?;
         let rs = rs.deref_mut();
 
         use coset::CborSerializable;
         let envelope = coset::CoseEncrypt0::from_slice(&access_token)?;
         let iv: &[u8] = &envelope.unprotected.iv;
-        let mut cipher: crate::aesccm::RustCryptoCcmCoseCipher::<aes::Aes256,  aead::generic_array::typenum::U16, aead::generic_array::typenum::U13> = crate::aesccm::RustCryptoCcmCoseCipher::new(
+        let mut cipher: crate::aesccm::RustCryptoCcmCoseCipher<
+            aes::Aes256,
+            aead::generic_array::typenum::U16,
+            aead::generic_array::typenum::U13,
+        > = crate::aesccm::RustCryptoCcmCoseCipher::new(
             rs.as_data.key,
             *aead::generic_array::GenericArray::from_slice(&iv),
-            );
+        );
 
         let claims = dcaf::decrypt_access_token(&access_token.to_vec(), &mut cipher, Some(&[]))?;
 
         // Check if the claims are compatible with us
 
-        if claims.issuer.as_ref().map(|s| Some(s.as_ref()) == rs.as_data.issuer) == Some(false) {
+        if claims
+            .issuer
+            .as_ref()
+            .map(|s| Some(s.as_ref()) == rs.as_data.issuer)
+            == Some(false)
+        {
             // There's no hard rule saying we have to reject, but it's good practice.
             return Err(AuthzInfoError::AuthzInfoError("Not from our AS"));
         }
-        
-        if claims.audience.as_ref().map(|s| Some(s.as_ref()) == rs.as_data.audience) == Some(false) {
+
+        if claims
+            .audience
+            .as_ref()
+            .map(|s| Some(s.as_ref()) == rs.as_data.audience)
+            == Some(false)
+        {
             // We have to reject if it's not us based on RFC7519 Section 4.1.3.
             return Err(AuthzInfoError::AuthzInfoError("Not for us"));
         }
 
-        let app_claims: APPCLAIMS = (&claims).try_into()
+        let app_claims: APPCLAIMS = (&claims)
+            .try_into()
             .map_err(|_| AuthzInfoError::AuthzInfoError("No valid application claims"))?;
 
         let pop_key = crate::oscore_claims::extract_oscore(claims)?;
-
 
         // Reserve an ID, derive and off we go
 
@@ -208,14 +252,26 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
         assert!(MAX_ID_LEN < 24);
         2 /* content-format */ + 1 /* payload marker */ + 7 /* CBOR structure */ + MAX_NONCE_LEN + MAX_ID_LEN
     }
-    fn build_response(&mut self, message: &mut impl MutableWritableMessage, request: Self::RequestData) {
+    fn build_response(
+        &mut self,
+        message: &mut impl MutableWritableMessage,
+        request: Self::RequestData,
+    ) {
         match request {
             Ok((id, nonce)) => {
-                message.set_code(coap_numbers::code::CHANGED.try_into().map_err(|_| ()).unwrap());
+                message.set_code(
+                    coap_numbers::code::CHANGED
+                        .try_into()
+                        .map_err(|_| ())
+                        .unwrap(),
+                );
                 message.add_option_uint(
-                    coap_numbers::option::CONTENT_FORMAT.try_into().map_err(|_| ()).unwrap(),
-                    CONTENT_FORMAT_ACE_CBOR
-                    );
+                    coap_numbers::option::CONTENT_FORMAT
+                        .try_into()
+                        .map_err(|_| ())
+                        .unwrap(),
+                    CONTENT_FORMAT_ACE_CBOR,
+                );
 
                 // Using the WindowedInfinityWithETag really more as a writer that has ciborium IO
                 // implemented. (It's non-idempotent POSTs, so we can't do blockwise easily anyway).
@@ -223,19 +279,21 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
 
                 let original_len = full_payload.len();
 
-                use ciborium_ll::{Encoder, Header};
                 use ciborium_io::Write;
+                use ciborium_ll::{Encoder, Header};
                 let mut encoder = Encoder::from(full_payload);
                 encoder.push(Header::Map(Some(2))).unwrap();
                 encoder.push(Header::Positive(crate::NONCE2)).unwrap();
                 encoder.bytes(&nonce, None).unwrap();
-                encoder.push(Header::Positive(crate::ACE_SERVER_RECIPIENTID)).unwrap();
+                encoder
+                    .push(Header::Positive(crate::ACE_SERVER_RECIPIENTID))
+                    .unwrap();
                 encoder.bytes(&id, None).unwrap();
                 encoder.flush().unwrap();
 
                 // Not checking for overflow: It won't happen by construction
-//                 drop(encoder);
-//                 let new_len = original_len - full_payload.len();
+                //                 drop(encoder);
+                //                 let new_len = original_len - full_payload.len();
                 // Actually even guessing the encoded length due to
                 // https://github.com/enarx/ciborium/issues/64
                 let new_len = 7 + nonce.len() + id.len();
@@ -247,7 +305,9 @@ impl<APPCLAIMS: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>, RS_ACCESS: for<'b> F
                     AuthzInfoError::DeriveError(_) => coap_numbers::code::BAD_REQUEST,
                     AuthzInfoError::CriticalOptionsRemain => coap_numbers::code::BAD_OPTION,
                     AuthzInfoError::BadMethod => coap_numbers::code::METHOD_NOT_ALLOWED,
-                    AuthzInfoError::RsCurrentlyUnavailable => coap_numbers::code::SERVICE_UNAVAILABLE,
+                    AuthzInfoError::RsCurrentlyUnavailable => {
+                        coap_numbers::code::SERVICE_UNAVAILABLE
+                    }
                 };
 
                 message.set_code(code.try_into().map_err(|_| ()).unwrap());
@@ -274,22 +334,25 @@ impl UnprotectedAuthzInfoPost {
         let mut decoder = ciborium_ll::Decoder::from(input);
         match decoder.pull() {
             Ok(ciborium_ll::Header::Map(Some(3) | None)) => (),
-            _ => return Err(AuthzInfoError::AuthzInfoError("Wrong map length"))
+            _ => return Err(AuthzInfoError::AuthzInfoError("Wrong map length")),
         };
 
-        fn pull_into_bytes<const N: usize, R: ciborium_io::Read>(decoder: &mut ciborium_ll::Decoder<R>) -> Result<heapless::Vec<u8, N>, AuthzInfoError> {
+        fn pull_into_bytes<const N: usize, R: ciborium_io::Read>(
+            decoder: &mut ciborium_ll::Decoder<R>,
+        ) -> Result<heapless::Vec<u8, N>, AuthzInfoError> {
             match decoder.pull() {
                 // Not accepting indefinite-length here even though it'd be technically feasible
                 Ok(ciborium_ll::Header::Bytes(Some(n))) if n <= N => {
                     let mut ret = heapless::Vec::new();
-                    // This zeroes, but that write should be optimized away 
+                    // This zeroes, but that write should be optimized away
                     ret.resize_default(n);
                     use ciborium_io::Read;
-                    decoder.read_exact(&mut ret)
+                    decoder
+                        .read_exact(&mut ret)
                         .map_err(|_| AuthzInfoError::AuthzInfoError("Mid-string termination"))?;
                     Ok(ret)
-                },
-                _ => Err(AuthzInfoError::AuthzInfoError("Wrong structure"))
+                }
+                _ => Err(AuthzInfoError::AuthzInfoError("Wrong structure")),
             }
         }
 
@@ -304,7 +367,7 @@ impl UnprotectedAuthzInfoPost {
                 Ok(ciborium_ll::Header::Positive(crate::ACE_CLIENT_RECIPIENTID)) => {
                     ace_client_recipientid = Some(pull_into_bytes(&mut decoder)?);
                 }
-                _ => return Err(AuthzInfoError::AuthzInfoError("Unknown key"))
+                _ => return Err(AuthzInfoError::AuthzInfoError("Unknown key")),
             }
         }
 
@@ -313,8 +376,13 @@ impl UnprotectedAuthzInfoPost {
         }
 
         if let (Some(access_token), Some(nonce1), Some(ace_client_recipientid)) =
-            (access_token, nonce1, ace_client_recipientid) {
-            Ok(Self { access_token, nonce1, ace_client_recipientid })
+            (access_token, nonce1, ace_client_recipientid)
+        {
+            Ok(Self {
+                access_token,
+                nonce1,
+                ace_client_recipientid,
+            })
         } else {
             Err(AuthzInfoError::AuthzInfoError("Missing data"))
         }
@@ -335,25 +403,31 @@ pub enum AuthzInfoError {
 }
 
 impl From<CriticalOptionsRemain> for AuthzInfoError {
-    fn from(_: CriticalOptionsRemain) -> Self { AuthzInfoError::CriticalOptionsRemain }
+    fn from(_: CriticalOptionsRemain) -> Self {
+        AuthzInfoError::CriticalOptionsRemain
+    }
 }
 
-impl<T> From<ciborium_ll::Error<T>> for AuthzInfoError
-{
-    fn from(_: ciborium_ll::Error<T>) -> Self { AuthzInfoError::AuthzInfoError("Format error") }
+impl<T> From<ciborium_ll::Error<T>> for AuthzInfoError {
+    fn from(_: ciborium_ll::Error<T>) -> Self {
+        AuthzInfoError::AuthzInfoError("Format error")
+    }
 }
 
-impl From<coset::CoseError> for AuthzInfoError
-{
-    fn from(_: coset::CoseError) -> Self { AuthzInfoError::AuthzInfoError("COSE structure error") }
+impl From<coset::CoseError> for AuthzInfoError {
+    fn from(_: coset::CoseError) -> Self {
+        AuthzInfoError::AuthzInfoError("COSE structure error")
+    }
 }
 
-impl<T: core::fmt::Display> From<dcaf::error::AccessTokenError<T>> for AuthzInfoError
-{
-    fn from(_: dcaf::error::AccessTokenError<T>) -> Self { AuthzInfoError::AuthzInfoError("Decryption failed") }
+impl<T: core::fmt::Display> From<dcaf::error::AccessTokenError<T>> for AuthzInfoError {
+    fn from(_: dcaf::error::AccessTokenError<T>) -> Self {
+        AuthzInfoError::AuthzInfoError("Decryption failed")
+    }
 }
 
-impl From<crate::oscore_claims::NoOscoreCnf> for AuthzInfoError
-{
-    fn from(_: crate::oscore_claims::NoOscoreCnf) -> Self { AuthzInfoError::AuthzInfoError("No OSCORE cnf contained") }
+impl From<crate::oscore_claims::NoOscoreCnf> for AuthzInfoError {
+    fn from(_: crate::oscore_claims::NoOscoreCnf) -> Self {
+        AuthzInfoError::AuthzInfoError("No OSCORE cnf contained")
+    }
 }
