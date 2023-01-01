@@ -277,7 +277,8 @@ impl<
                 // implemented. (It's non-idempotent POSTs, so we can't do blockwise easily anyway).
                 let full_payload = message.payload_mut_with_len(7 + MAX_NONCE_LEN + MAX_ID_LEN);
 
-                let original_len = full_payload.len();
+                // Not needed, see below
+                // let original_len = full_payload.len();
 
                 use ciborium_io::Write;
                 use ciborium_ll::{Encoder, Header};
@@ -345,7 +346,7 @@ impl UnprotectedAuthzInfoPost {
                 Ok(ciborium_ll::Header::Bytes(Some(n))) if n <= N => {
                     let mut ret = heapless::Vec::new();
                     // This zeroes, but that write should be optimized away
-                    ret.resize_default(n);
+                    ret.resize_default(n).expect("n <= N was checked");
                     use ciborium_io::Read;
                     decoder
                         .read_exact(&mut ret)

@@ -106,7 +106,7 @@ where
                 &self.nonce,
                 Payload {
                     msg: ciphertext,
-                    aad: aad,
+                    aad,
                 },
             )
             .map_err(|_e| CoseCipherError::DecryptionFailure)
