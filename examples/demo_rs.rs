@@ -1,3 +1,16 @@
+//! A standalone RS that doesn't really offer any resources other than /authz-info
+//!
+//! This can be tested by running the following:
+//!
+//! ```sh
+//! $ diag2cbor.rb > post-me.cbor
+//! {1: h'8344A101181FA1054DA175FD2F60B3AFBDA3EBC31124583566E0A6CB3C45DB9D1D632CDA1314479B1D0EC2585384349F0B0B7DB58AD0D8C12E8D4AA549FEA0F46C7ED6CA14E04AA9EA368E3602', 40: h'34', 43: h'01'}
+//! ^D
+//! $ aiocoap-client coap://localhost/authz-info -m POST --payload @post-me.cbor
+//! CBOR message shown in naïve Python decoding
+//! {42: b'\x04', 44: b'\x02'}
+//! ```
+
 use embedded_nal::UdpFullStack;
 use embedded_nal::UdpClientStack;
 
@@ -29,8 +42,6 @@ fn main() {
     stack.bind(&mut sock, 5683).expect("Can't bind to port");
 
     loop {
-//         dbg!(&rs);
-
         let authz_info = ace_oscore_helpers::resourceserver::UnprotectedAuthzInfoEndpoint::new(|| rs.try_borrow_mut().ok());
 
         use coap_handler_implementations::HandlerBuilder;
