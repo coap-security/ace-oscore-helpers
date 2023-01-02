@@ -47,7 +47,11 @@ pub struct RsAsSharedData {
 /// If more than just the RS produces IDs, this could take a prefix from the environment (or any
 /// other means of sharding) to also allow having OSCORE recipient IDs not from here.
 #[derive(Debug)]
-pub struct ResourceServer<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> {
+pub struct ResourceServer<AppClaims, RandomSource>
+where
+    AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>,
+    RandomSource: FnMut(&mut [u8]),
+{
     last_id2: core::num::Wrapping<u8>,
     // Note that for the relevant MAX_TOKENS, there'd be no gains from an indexed data structure
     //
@@ -56,14 +60,24 @@ pub struct ResourceServer<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>>
     tokens: uluru::LRUCache<(liboscore::PrimitiveContext, AppClaims), MAX_TOKENS>,
     // It might also make sense to have these iterable
     as_data: RsAsSharedData,
+    /// Source of randomness
+    random_source: RandomSource,
 }
 
-impl<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<AppClaims> {
-    pub fn new_with_association(as_data: RsAsSharedData) -> Self {
+impl<AppClaims, RandomSource> ResourceServer<AppClaims, RandomSource>
+where
+    AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>,
+    RandomSource: FnMut(&mut [u8]),
+{
+    pub fn new_with_association_and_randomness(
+        as_data: RsAsSharedData,
+        random_source: RandomSource,
+    ) -> Self {
         Self {
             last_id2: Default::default(), // any is good
             tokens: Default::default(),   // empty
             as_data,
+            random_source,
         }
     }
 
@@ -99,8 +113,9 @@ impl<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<AppCl
         id1: Id,
         nonce1: Nonce,
     ) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
-        let nonce2 = Nonce::try_from([4].as_ref()).unwrap(); // FIXME DANGER (also won't work as
-                                                             // the length is wrong)
+        let mut nonce2: Nonce = Default::default();
+        nonce2.resize_default(8); // 64-bit long random number is recommended
+        (self.random_source)(&mut nonce2);
         let mut id2 = self.take_id2();
         if id2 == id1 {
             // If it's still identical, then take_id2 is broken in that it doesn't cycle as
@@ -145,17 +160,19 @@ impl<AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>> ResourceServer<AppCl
 /// backed by a platform dependent mutex.
 pub struct UnprotectedAuthzInfoEndpoint<
     AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+    RandomSource: FnMut(&mut [u8]),
     RsAccess: for<'b> FnMut() -> Option<RsDeref>,
-    RsDeref: DerefMut<Target = ResourceServer<AppClaims>>,
+    RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
 > {
     rs: RsAccess,
 }
 
 impl<
         AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+        RandomSource: FnMut(&mut [u8]),
         RsAccess: for<'b> FnMut() -> Option<RsDeref>,
-        RsDeref: DerefMut<Target = ResourceServer<AppClaims>>,
-    > UnprotectedAuthzInfoEndpoint<AppClaims, RsAccess, RsDeref>
+        RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
+    > UnprotectedAuthzInfoEndpoint<AppClaims, RandomSource, RsAccess, RsDeref>
 {
     pub fn new(rs: RsAccess) -> Self {
         Self { rs }
@@ -164,9 +181,11 @@ impl<
 
 impl<
         AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
+        RandomSource: FnMut(&mut [u8]),
         RsAccess: for<'b> FnMut() -> Option<RsDeref>,
-        RsDeref: DerefMut<Target = ResourceServer<AppClaims>>,
-    > coap_handler::Handler for UnprotectedAuthzInfoEndpoint<AppClaims, RsAccess, RsDeref>
+        RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
+    > coap_handler::Handler
+    for UnprotectedAuthzInfoEndpoint<AppClaims, RandomSource, RsAccess, RsDeref>
 {
     type RequestData = Result<(Id, Nonce), AuthzInfoError>;
 
