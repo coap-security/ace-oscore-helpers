@@ -133,7 +133,7 @@ where
             id2 = self.take_id2();
         }
 
-        let context = crate::oscore_claims::derive(material, &nonce1, &nonce2, &id1, &id2)?;
+        let context = crate::oscore_claims::derive(&material, &nonce1, &nonce2, &id1, &id2)?;
         self.tokens.insert((context, app_claims));
 
         Ok((id2, nonce2))

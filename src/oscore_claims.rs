@@ -84,7 +84,7 @@ mod for_liboscore {
     }
 
     pub fn derive(
-        material: coset::OscoreInputMaterial,
+        material: &coset::OscoreInputMaterial,
         nonce1: &[u8],
         nonce2: &[u8],
         sender_id: &[u8],
@@ -101,10 +101,10 @@ mod for_liboscore {
             .ms
             .as_deref()
             .ok_or(DeriveError::MissingEssentials)?;
-        fn alg_as_i32(alg: coset::Algorithm) -> Option<i32> {
+        fn alg_as_i32(alg: &coset::Algorithm) -> Option<i32> {
             i32::try_from(match alg {
                 coset::RegisteredLabelWithPrivate::Assigned(a) => a.to_i64(),
-                coset::RegisteredLabelWithPrivate::PrivateUse(i) => i,
+                coset::RegisteredLabelWithPrivate::PrivateUse(i) => *i,
                 coset::RegisteredLabelWithPrivate::Text(_) => return None,
             })
             .ok()
@@ -112,6 +112,7 @@ mod for_liboscore {
         let hkdf = liboscore::HkdfAlg::from_number(
             material
                 .hkdf
+                .as_ref()
                 .map(alg_as_i32)
                 .unwrap_or(Some(5)) // FIXME: magic constant; OSCORE says it's SHA-256 but doesn't give it
                 // by number
@@ -120,6 +121,7 @@ mod for_liboscore {
         let aead = liboscore::AeadAlg::from_number(
             material
                 .alg
+                .as_ref()
                 .map(alg_as_i32)
                 .unwrap_or(Some(10)) // FIXME: magic constant; OSCORE's default algorithm
                 .ok_or(DeriveError::AlgorithmUnknown)?,
