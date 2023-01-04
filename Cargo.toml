@@ -44,6 +44,7 @@ std-embedded-nal = { version = "^0.1.2", optional = true }
 
 [features]
 example-demo_rs = [ "embedded-nal-minimal-coapserver", "embedded-nal", "std-embedded-nal", "liboscore" ]
+alloc = []
 
 [[example]]
 name = "demo_rs"

@@ -4,10 +4,17 @@
 //! dcaf crates.
 #![no_std]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+mod ciborium_helpers;
+
 pub mod aesccm;
 pub mod oscore_claims;
 #[cfg(feature = "liboscore")]
 pub mod resourceserver;
+
+pub mod request_creation_hints;
 
 // FIXME: Provide a means to set up COSE keys rather than constructing keys manually
 pub use aead;

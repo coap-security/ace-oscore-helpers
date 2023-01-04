@@ -4,6 +4,8 @@ use coap_handler_implementations::option_processing::CriticalOptionsRemain;
 use coap_message::{MessageOption, MutableWritableMessage, ReadableMessage};
 use coset::OscoreInputMaterial;
 
+use crate::ciborium_helpers::pull_into_bytes;
+
 /// The CoaP Content-Format for application/ace+cbor (per RFC 9200)
 const CONTENT_FORMAT_ACE_CBOR: u16 = 19;
 
@@ -357,25 +359,6 @@ impl UnprotectedAuthzInfoPost {
             _ => return Err(AuthzInfoError::AuthzInfoError("Wrong map length")),
         };
 
-        fn pull_into_bytes<const N: usize, R: ciborium_io::Read>(
-            decoder: &mut ciborium_ll::Decoder<R>,
-        ) -> Result<heapless::Vec<u8, N>, AuthzInfoError> {
-            match decoder.pull() {
-                // Not accepting indefinite-length here even though it'd be technically feasible
-                Ok(ciborium_ll::Header::Bytes(Some(n))) if n <= N => {
-                    let mut ret = heapless::Vec::new();
-                    // This zeroes, but that write should be optimized away
-                    ret.resize_default(n).expect("n <= N was checked");
-                    use ciborium_io::Read;
-                    decoder
-                        .read_exact(&mut ret)
-                        .map_err(|_| AuthzInfoError::AuthzInfoError("Mid-string termination"))?;
-                    Ok(ret)
-                }
-                _ => Err(AuthzInfoError::AuthzInfoError("Wrong structure")),
-            }
-        }
-
         for _ in 0..3 {
             match decoder.pull() {
                 Ok(ciborium_ll::Header::Positive(crate::ACCESS_TOKEN)) => {
@@ -449,5 +432,11 @@ impl<T: core::fmt::Display> From<dcaf::error::AccessTokenError<T>> for AuthzInfo
 impl From<crate::oscore_claims::NoOscoreCnf> for AuthzInfoError {
     fn from(_: crate::oscore_claims::NoOscoreCnf) -> Self {
         AuthzInfoError::AuthzInfoError("No OSCORE cnf contained")
+    }
+}
+
+impl From<crate::ciborium_helpers::PullError> for AuthzInfoError {
+    fn from(e: crate::ciborium_helpers::PullError) -> Self {
+        AuthzInfoError::AuthzInfoError(e.into())
     }
 }
