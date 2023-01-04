@@ -17,9 +17,9 @@ impl<S: AsRef<str>> RequestCreationHints<S> {
     ) -> Result<(), W::Error> {
         encoder.push(ciborium_ll::Header::Map(Some(2)))?;
         encoder.push(ciborium_ll::Header::Positive(AS))?;
-        encoder.text("https://as.coap.amsuess.com/token", None)?;
+        encoder.text(self.as_uri.as_ref(), None)?;
         encoder.push(ciborium_ll::Header::Positive(AUDIENCE))?;
-        encoder.text("rs1", None)?;
+        encoder.text(self.audience.as_ref(), None)?;
         Ok(())
     }
 }
