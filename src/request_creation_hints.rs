@@ -4,7 +4,7 @@ use alloc::string::String;
 const AS: u64 = 1;
 const AUDIENCE: u64 = 5;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct RequestCreationHints<S: AsRef<str>> {
     pub as_uri: S,
     pub audience: S,
