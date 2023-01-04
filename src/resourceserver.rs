@@ -35,8 +35,16 @@ pub type Nonce = heapless::Vec<u8, MAX_NONCE_LEN>;
 #[derive(Debug)]
 pub struct RsAsSharedData {
     // FIXME: Introduce proper constructor once types are decided
+    /// Value of the issuer field, which the token needs to match if it contains one.
     pub issuer: Option<&'static str>,
-    pub audience: Option<&'static str>,
+    /// Value of the audience field, which the token needs to match if it contains one. This is
+    /// also the value produced in request creation hints (which is why unlike the issuer it is
+    /// not optional).
+    pub audience: &'static str,
+    /// URI on which a client can reach the AS. This is used in request creation hints.
+    pub as_uri: &'static str,
+
+    /// Key shared between the AS and this RS.
     pub key: aead::Key<
         ccm::Ccm<aes::Aes256, aead::generic_array::typenum::U16, aead::generic_array::typenum::U13>,
     >,
@@ -149,6 +157,21 @@ where
             .find(|(context, _)| context.recipient_id() == kid)?;
         Some((context, claims))
     }
+
+    /// Build request creation hints that can be used to inform the client of which tokens to get.
+    ///
+    /// This is a function of the (stateful) ResourcesServer instead of the plain RsAsSharedData
+    /// because it may in the future also report a cnonce.
+    ///
+    /// An extended version may also accept a scope (which is currently just not reported ever).
+    pub fn request_creation_hints(
+        &self,
+    ) -> crate::request_creation_hints::RequestCreationHints<&str> {
+        crate::request_creation_hints::RequestCreationHints {
+            as_uri: self.as_data.as_uri,
+            audience: self.as_data.audience,
+        }
+    }
 }
 
 /// The /authz-info resource as accessed without OSCORE protection (to which tokens with nonce and
@@ -250,7 +273,7 @@ impl<
         if claims
             .audience
             .as_ref()
-            .map(|s| Some(s.as_ref()) == rs.as_data.audience)
+            .map(|s| s.as_str() == rs.as_data.audience)
             == Some(false)
         {
             // We have to reject if it's not us based on RFC7519 Section 4.1.3.
