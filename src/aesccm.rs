@@ -1,4 +1,11 @@
-// Source: https://gist.github.com/falko17/3639876b57744c6dd2a166b5bc9cc126
+//! Constructor for AES-CCM keys with which AS-RS communication (in the form access tokens) is
+//! secured
+//!
+//! Source: <https://gist.github.com/falko17/3639876b57744c6dd2a166b5bc9cc126>
+//!
+//! This is not thoroughly documented in detail as the key constructions are subject to [ongoing
+//! refactoring](https://github.com/namib-project/dcaf-rs/pull/10), and key construction for dcaf
+//! will be vastly simplified when that step has concluded.
 extern crate alloc;
 use alloc::vec::Vec;
 

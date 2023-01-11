@@ -1,6 +1,9 @@
+//! Tools for simplifying interaction with ciborium-ll inside this crate
+
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
 
+/// Error type for [pull_into_string()] and [pull_into_bytes()]
 #[derive(Debug, Copy, Clone)]
 pub enum PullError {
     /// End of file reached mid-string
@@ -23,6 +26,7 @@ impl From<PullError> for &'static str {
     }
 }
 
+/// Extract a CBOR text string decoder into a String. This supports only definite length strings.
 #[cfg(feature = "alloc")]
 pub(crate) fn pull_into_string<R: ciborium_io::Read>(
     decoder: &mut ciborium_ll::Decoder<R>,
@@ -44,6 +48,8 @@ pub(crate) fn pull_into_string<R: ciborium_io::Read>(
     }
 }
 
+/// Extract a CBOR byte string from the decoder into a heapless::Vec. This supports only definite
+/// length strings.
 pub(crate) fn pull_into_bytes<const N: usize, R: ciborium_io::Read>(
     decoder: &mut ciborium_ll::Decoder<R>,
 ) -> Result<heapless::Vec<u8, N>, PullError> {

@@ -10,6 +10,9 @@
 #[derive(defmt::Format, Debug)]
 pub struct NoOscoreCnf;
 
+/// Extract OSCORE input material from a ClaimsSet
+///
+/// This is typically used after having decrypted a token on the RS side.
 // This takes ownership of a ClaimsSet because the i128 keyed map version dcaf works with contains
 // owned Value items.
 pub fn extract_oscore(
@@ -191,6 +194,10 @@ mod for_liboscore {
         })
     }
 
+    /// Given OSCORE material (from either the outer or the inner part of a token response) and
+    /// data provided by either of the two parties of an RFC9203 exchange, produce a libOSCORE
+    /// context that can be used to protect the OSCORE communication following the ACE-OSCORE
+    /// exchange.
     pub fn derive(
         material: &coset::OscoreInputMaterial,
         nonce1: &[u8],

@@ -1,16 +1,28 @@
+//! Tools for reading and writing Request Creation Hints, which are sent
+//! in ACE by a RS to the Client when its credentials do not suffice for accessing a resource.
 #[cfg(feature = "alloc")]
 use alloc::string::String;
 
 const AS: u64 = 1;
 const AUDIENCE: u64 = 5;
 
+/// Request Creation Hints (as specified in [RFC9200 Section 5.3])
+///
+/// These are generic over ownership of its properties, and thus usable easily both in the Client
+/// (where the hints often need to be owned) and the RS (where the hints may reside in static
+/// memory).
+///
+/// [RFC9200 Section 5.3]: https://www.rfc-editor.org/rfc/rfc9200.html#name-as-request-creation-hints
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct RequestCreationHints<S: AsRef<str>> {
+    /// AS: URI of the Authorization Server
     pub as_uri: S,
+    /// audience: Identifier for the RS assigned within the AS
     pub audience: S,
 }
 
 impl<S: AsRef<str>> RequestCreationHints<S> {
+    /// Encode self into a Ciborium writer
     pub fn push_to_encoder<W: ciborium_io::Write>(
         &self,
         encoder: &mut ciborium_ll::Encoder<W>,
@@ -26,6 +38,7 @@ impl<S: AsRef<str>> RequestCreationHints<S> {
 
 #[cfg(feature = "alloc")]
 impl RequestCreationHints<String> {
+    /// Parse Request Creation Hints into an owned structure
     // Running this by ciborium-ll is easier than building the full serde deserializer that appears
     // not to really cater for statically typed maps (see
     // https://github.com/serde-rs/serde/issues/2358)

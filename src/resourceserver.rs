@@ -1,3 +1,12 @@
+//! An ACE Resource Server as used with the ACE OSCORE Profile
+//!
+//! More particularly, this module implements the security associations an RS has with the Client,
+//! realized in libOSCORE contexts, and an `/authz-info` endpoint at which these are added.
+//!
+//! (In general, RS as a whole also includes the application specific resources; this module
+//! provides the tools to build a full RS by combining it with the application resources and a CoAP
+//! stack that protects messages based on the security contexts provided by this module).
+
 use core::ops::DerefMut;
 
 use coap_handler_implementations::option_processing::CriticalOptionsRemain;
@@ -9,6 +18,7 @@ use crate::ciborium_helpers::pull_into_bytes;
 /// The CoaP Content-Format for application/ace+cbor (per RFC 9200)
 const CONTENT_FORMAT_ACE_CBOR: u16 = 19;
 
+/// Maximum number of tokens stored in an RS
 // FIXME: Make ResourceServer generic on this
 //
 // When configuring an RS with more than 256 active tokens, beware that not only last_id2 needs a
@@ -23,11 +33,19 @@ const MAX_TOKENS: usize = 4;
 /// IDs on its own).
 const MAX_ID_LEN: usize = 7;
 
+/// Maximum length of nonces accepted from peers
 const MAX_NONCE_LEN: usize = 16;
 
+/// Maximum length of a token accepted
+///
+/// This is necessary due to mismatch between how ciborium does not forward the serialization's
+/// guarantee that byte strings are in contiguous memory, which is needed at the point when coset
+/// starts consuming it.
 const MAX_TOKEN_SIZE: usize = 256; // FIXME: guessed
 
+/// Type for Sender and Recipient ID values
 pub type Id = heapless::Vec<u8, MAX_ID_LEN>;
+/// Type for nonce1 and nonce2 values
 pub type Nonce = heapless::Vec<u8, MAX_NONCE_LEN>;
 
 /// Shared identifiers and secrets between an RS and an AS
@@ -50,7 +68,8 @@ pub struct RsAsSharedData {
     >,
 }
 
-/// ...
+/// A pool of ACE-OSCORE tokens, along with all data needed to accept new tokens and deal out error
+/// responses.
 ///
 /// ## Possible improvements
 ///
@@ -62,13 +81,23 @@ where
     AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>,
     RandomSource: FnMut(&mut [u8]),
 {
+    /// Hint for creating the next id2
+    ///
+    /// This is not so much an optimization for dealing out new numbers faster (`.tokens` still
+    /// needs to be consulted); its main purpose is to ensure that collisions with the id1 provided
+    /// by the client can be dealt with (as [take_id2()] can produce different values in subsequent
+    /// calls).
     last_id2: core::num::Wrapping<u8>,
+    /// Most recently used security associations
     // Note that for the relevant MAX_TOKENS, there'd be no gains from an indexed data structure
     //
     // TBD: We could store whether the token was used for successful communication, and then ensure
     // that some previously-used tokens are not evicted before unverified ones.
     tokens: uluru::LRUCache<(liboscore::PrimitiveContext, AppClaims), MAX_TOKENS>,
-    // It might also make sense to have these iterable
+    /// Data about the AS, both cryptographic and metadata, some of which is also used in Request
+    /// Creation Hints.
+    // It might also make sense to have these iterable (we'd need to accept key IDs to
+    // disambiguate, and some extra information to generate Request Creation Hints).
     as_data: RsAsSharedData,
     /// Source of randomness
     random_source: RandomSource,
@@ -79,6 +108,11 @@ where
     AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>,
     RandomSource: FnMut(&mut [u8]),
 {
+    /// Main constructor of ResourceServer
+    ///
+    /// The `random_source` function must provide random data in the provided buffer. Its output
+    /// needs to be "very unlikely to have been previously used with the same input keying
+    /// material".
     pub fn new_with_association_and_randomness(
         as_data: RsAsSharedData,
         random_source: RandomSource,
@@ -179,10 +213,6 @@ where
 ///
 /// The protected /authz-info endpoint (to which tokens are posted for updating) is currently not
 /// implemented (but would be implemented in a different struct).
-///
-/// Given that the endpoint may live independently of the handler, we can't keep a mutable
-/// reference to it. Instead, we store a closure that grants us exclusive access to it, typically
-/// backed by a platform dependent mutex.
 pub struct UnprotectedAuthzInfoEndpoint<
     AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
     RandomSource: FnMut(&mut [u8]),
@@ -199,6 +229,11 @@ impl<
         RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
     > UnprotectedAuthzInfoEndpoint<AppClaims, RandomSource, RsAccess, RsDeref>
 {
+    /// Constructor for an UnprotectedAuthzInfoEndpoint handler
+    ///
+    /// Given that the endpoint may live independently of the RS, we can't keep a mutable reference
+    /// to it. Instead, we store a closure that grants us exclusive access to it, typically backed
+    /// by a platform dependent mutex.
     pub fn new(rs: RsAccess) -> Self {
         Self { rs }
     }
@@ -362,6 +397,7 @@ impl<
     }
 }
 
+/// Internal representation of the data POSTed to an unprotected `/authz-info` endpoint
 // I'd love to just let serde derive this, but apparently it won't do the numeric map keys.
 struct UnprotectedAuthzInfoPost {
     access_token: heapless::Vec<u8, MAX_TOKEN_SIZE>,
