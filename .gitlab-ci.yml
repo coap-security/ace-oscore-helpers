@@ -5,7 +5,7 @@ test:nightly:
 pages:
   image: docker.io/rust
   script:
-    - cargo doc --no-deps
+    - cargo doc --no-deps --all-features
     - mkdir public
     - mv target/doc public/doc
   artifacts:
