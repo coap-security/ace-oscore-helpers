@@ -539,5 +539,8 @@ mod test {
                 [162, 24, 42, 72, 0, 0, 0, 0, 0, 0, 0, 0, 24, 44, 65, 2 + iteration],
             );
         }
+
+        // It'd bet tempting to look into the keys of, say, `rs.tokens.find(|(pc, ac)|
+        // pc.recipient_id() == &[2]).unwrap().0`, but liboscore won't allow us to look in there.
     }
 }

@@ -58,6 +58,17 @@ mod for_liboscore {
     const NONCE_MAX: usize = 32;
     const INPUT_SALT_MAX: usize = 32;
 
+    /// Intermediat results of the derivation process
+    struct ConcreteOscoreInputs<'a> {
+        hkdf: liboscore::HkdfAlg,
+        master_secret: &'a [u8],
+        combined_salt: alloc::vec::Vec<u8>,
+        context_id: Option<&'a [u8]>,
+        aead: liboscore::AeadAlg,
+        sender_id: &'a [u8],
+        recipient_id: &'a [u8],
+    }
+
     #[derive(Debug, Copy, Clone, defmt::Format)]
     #[non_exhaustive]
     pub enum DeriveError {
@@ -83,13 +94,15 @@ mod for_liboscore {
         }
     }
 
-    pub fn derive(
-        material: &coset::OscoreInputMaterial,
-        nonce1: &[u8],
-        nonce2: &[u8],
-        sender_id: &[u8],
-        recipient_id: &[u8],
-    ) -> Result<liboscore::PrimitiveContext, DeriveError> {
+    /// Helper for derive() that preprocesses all input but doesn't perform OSCORE's internal key
+    /// derivation yet
+    fn derive_generic<'a>(
+        material: &'a coset::OscoreInputMaterial,
+        nonce1: &'a [u8],
+        nonce2: &'a [u8],
+        sender_id: &'a [u8],
+        recipient_id: &'a [u8],
+    ) -> Result<ConcreteOscoreInputs<'a>, DeriveError> {
         use coset::iana::EnumI64;
 
         let version = material
@@ -167,19 +180,81 @@ mod for_liboscore {
             salt_encoder.bytes(nonce2, None).unwrap();
         }
 
-        let immutables = liboscore::PrimitiveImmutables::derive(
+        Ok(ConcreteOscoreInputs {
             hkdf,
             master_secret,
-            &combined_salt,
+            combined_salt,
             context_id,
             aead,
             sender_id,
             recipient_id,
+        })
+    }
+
+    pub fn derive(
+        material: &coset::OscoreInputMaterial,
+        nonce1: &[u8],
+        nonce2: &[u8],
+        sender_id: &[u8],
+        recipient_id: &[u8],
+    ) -> Result<liboscore::PrimitiveContext, DeriveError> {
+        let oscore_inputs = derive_generic(material, nonce1, nonce2, sender_id, recipient_id)?;
+
+        let immutables = liboscore::PrimitiveImmutables::derive(
+            oscore_inputs.hkdf,
+            oscore_inputs.master_secret,
+            &oscore_inputs.combined_salt,
+            oscore_inputs.context_id,
+            oscore_inputs.aead,
+            oscore_inputs.sender_id,
+            oscore_inputs.recipient_id,
         )?;
 
         Ok(liboscore::PrimitiveContext::new_from_fresh_material(
             immutables,
         ))
+    }
+
+    #[cfg(test)]
+    mod test {
+        #[test]
+        fn test_derive() {
+            // From RFC9203 fig. 4, without the removed access token
+            let token_response: &[u8] = &[
+                164, 1, 73, 131, 67, 161, 1, 10, 162, 4, 76, 83, 24, 38, 2, 2, 25, 14, 16, 8, 161,
+                4, 162, 0, 65, 1, 2, 80, 249, 175, 131, 131, 104, 227, 83, 231, 136, 136, 225, 66,
+                107, 217, 78, 111,
+            ];
+
+            use dcaf::ToCborMap;
+            let token_response =
+                dcaf::AccessTokenResponse::deserialize_from(token_response).unwrap();
+            let dcaf::ProofOfPossessionKey::OscoreInputMaterial(material) = token_response.cnf.unwrap() else {
+                panic!("Unexpected PoP key");
+            };
+            // Nonces from RFC fig. 13
+            let derived = super::derive_generic(
+                &material,
+                &[1, 138, 39, 143, 127, 170, 181, 90],
+                &[37, 168, 153, 28, 215, 0, 172, 1],
+                &[],
+                &[0x01],
+            )
+            .unwrap();
+
+            // Note that the RFC does not show that particular value (it doesn't contain test
+            // vectors); for the example of a combined salt which it does show, it uses what is the
+            // master secret in fig. 4 as the master salt.
+            #[rustfmt::skip]
+            assert_eq!(
+                derived.combined_salt,
+                [64, 72, 1, 138, 39, 143, 127, 170, 181, 90, 72, 37, 168, 153, 28, 215, 0, 172, 1 ]
+            );
+            assert_eq!(
+                derived.master_secret,
+                [249, 175, 131, 131, 104, 227, 83, 231, 136, 136, 225, 66, 107, 217, 78, 111]
+            );
+        }
     }
 }
 
