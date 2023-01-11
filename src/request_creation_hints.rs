@@ -57,3 +57,35 @@ impl RequestCreationHints<String> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    /// Example adjusted from RFC9200
+    const ENCODED: &[u8] = &[
+        0xa2, 0x01, 0x78, 0x1c, 0x63, 0x6f, 0x61, 0x70, 0x73, 0x3a, 0x2f, 0x2f, 0x61, 0x73, 0x2e,
+        0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x74, 0x6f, 0x6b,
+        0x65, 0x6e, 0x05, 0x76, 0x63, 0x6f, 0x61, 0x70, 0x73, 0x3a, 0x2f, 0x2f, 0x72, 0x73, 0x2e,
+        0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
+    ];
+
+    #[test]
+    fn parse() {
+        let rch = RequestCreationHints::parse_cbor(ENCODED).unwrap();
+        assert_eq!(&rch.as_uri, "coaps://as.example.com/token");
+        assert_eq!(&rch.audience, "coaps://rs.example.com");
+    }
+
+    #[test]
+    fn serialize() {
+        let rch = RequestCreationHints {
+            as_uri: "coaps://as.example.com/token",
+            audience: "coaps://rs.example.com",
+        };
+        let mut buffer = alloc::vec::Vec::new();
+        let mut encoder = ciborium_ll::Encoder::from(&mut buffer);
+        rch.push_to_encoder(&mut encoder).unwrap();
+        assert_eq!(buffer, ENCODED);
+    }
+}
