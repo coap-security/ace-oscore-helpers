@@ -32,12 +32,15 @@ fn main() {
     // The data between the AS and the rs1 of the ACE-Java demo sever
     let association = ace_oscore_helpers::resourceserver::RsAsSharedData {
         issuer: Some("AS"),
-        audience: Some("rs1"),
+        audience: "rs1",
+        as_uri: "http://example.com/token",
         key: aead::generic_array::arr![u8; 'a' as u8, 'b' as u8, 'c' as u8, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     };
 
-    let rs = ace_oscore_helpers::resourceserver::ResourceServer::<AppClaims>::new_with_association(
+    use rand::RngCore;
+    let rs = ace_oscore_helpers::resourceserver::ResourceServer::<AppClaims, _>::new_with_association_and_randomness(
         association,
+        |data| rand::thread_rng().fill_bytes(data),
     );
     let rs = core::cell::RefCell::new(rs);
 

@@ -41,6 +41,7 @@ defmt = "0.3"
 embedded-nal-minimal-coapserver = { version = "^0.3", optional = true }
 embedded-nal = { version = "^0.6", optional = true }
 std-embedded-nal = { version = "^0.1.2", optional = true }
+rand = { version = "0.8.5", optional = true }
 
 [features]
 example-demo_rs = [ "embedded-nal-minimal-coapserver", "embedded-nal", "std-embedded-nal", "liboscore" ]
