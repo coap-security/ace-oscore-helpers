@@ -124,7 +124,7 @@ where
         nonce1: Nonce,
     ) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
         let mut nonce2: Nonce = Default::default();
-        nonce2.resize_default(8); // 64-bit long random number is recommended
+        nonce2.resize_default(8).expect("8 < MAX_NONCE_LEN"); // 64-bit long random number is recommended
         (self.random_source)(&mut nonce2);
         let mut id2 = self.take_id2();
         if id2 == id1 {
