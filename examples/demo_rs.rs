@@ -34,6 +34,8 @@ fn main() {
         issuer: Some("AS"),
         audience: "rs1",
         as_uri: "http://example.com/token",
+        // When using different material, consider keeping src/resourcecerver.rs
+        // test_token_processing in sync.
         key: aead::generic_array::arr![u8; 'a' as u8, 'b' as u8, 'c' as u8, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     };
 

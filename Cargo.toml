@@ -43,6 +43,10 @@ embedded-nal = { version = "^0.6", optional = true }
 std-embedded-nal = { version = "^0.1.2", optional = true }
 rand = { version = "0.8.5", optional = true }
 
+[dev-dependencies]
+# for tests
+coap-message = { version = "0.2.3", features = [ "alloc" ] }
+
 [features]
 example-demo_rs = [ "embedded-nal-minimal-coapserver", "embedded-nal", "std-embedded-nal", "liboscore" ]
 alloc = []

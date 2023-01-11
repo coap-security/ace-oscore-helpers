@@ -463,3 +463,81 @@ impl From<crate::ciborium_helpers::PullError> for AuthzInfoError {
         AuthzInfoError::AuthzInfoError(e.into())
     }
 }
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct AppClaims(std::string::String);
+
+    impl<'a> TryFrom<&'a coset::cwt::ClaimsSet> for AppClaims {
+        type Error = core::convert::Infallible;
+        fn try_from(
+            claimsset: &'a coset::cwt::ClaimsSet,
+        ) -> Result<Self, core::convert::Infallible> {
+            Ok(Self(std::format!("{:?}", claimsset)))
+        }
+    }
+
+    fn create_test_rs() -> ResourceServer<AppClaims, fn(&mut [u8])> {
+        // See demo_rs example for source of these data
+
+        let association = RsAsSharedData {
+            issuer: Some("AS"),
+            audience: "rs1",
+            as_uri: "http://example.com/token",
+            key: aead::generic_array::arr![u8; 'a' as u8, 'b' as u8, 'c' as u8, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
+        };
+
+        /// A very bad random number generator
+        fn assign_zeros(data: &mut [u8]) {
+            data.iter_mut().for_each(|a| *a = 0);
+        }
+
+        ResourceServer::new_with_association_and_randomness(association, assign_zeros)
+    }
+
+    #[test]
+    fn test_valid_tokens() {
+        use coap_handler::Handler;
+        use coap_message::MinimalWritableMessage;
+
+        let rs = create_test_rs();
+        let rs = std::sync::Mutex::new(rs);
+        let mut endpoint = UnprotectedAuthzInfoEndpoint::new(|| rs.try_lock().ok());
+
+        // We're POSTing the same token multiple times, expecting different OSCORE contexts
+        //
+        // It may be permissible for the resource implementation to do some idempotency handling
+        // (this will need to be checked with RFC9203 though; gut feeling says it's OK because the
+        // client will only act once on one random value it issued).
+        for iteration in 0..2 {
+            // Note that all requests we send the rs's way are directed at the `/` resource, as it's up
+            // to the user to place it at a particular path
+            let mut request = coap_message::heapmessage::HeapMessage::new();
+            request.set_code(coap_numbers::code::POST);
+            // request is the data in the documentation of the demo_rs example
+            request.set_payload(&[
+                163, 1, 88, 77, 131, 68, 161, 1, 24, 31, 161, 5, 77, 161, 117, 253, 47, 96, 179,
+                175, 189, 163, 235, 195, 17, 36, 88, 53, 102, 224, 166, 203, 60, 69, 219, 157, 29,
+                99, 44, 218, 19, 20, 71, 155, 29, 14, 194, 88, 83, 132, 52, 159, 11, 11, 125, 181,
+                138, 208, 216, 193, 46, 141, 74, 165, 73, 254, 160, 244, 108, 126, 214, 202, 20,
+                224, 74, 169, 234, 54, 142, 54, 2, 24, 40, 65, 52, 24, 43, 65, 1,
+            ]);
+            let request_data = endpoint.extract_request_data(&request);
+            let mut response = coap_message::heapmessage::HeapMessage::new();
+            endpoint.build_response(&mut response, request_data);
+            assert_eq!(response.code(), coap_numbers::code::CHANGED);
+            // nonce is all zeros as per our broken RNG's defaults, tokens happen to start at 2
+            // (although it's an implementation detail, the tests should change if that changes)
+            #[rustfmt::skip]
+            assert_eq!(
+                response.payload(),
+                [162, 24, 42, 72, 0, 0, 0, 0, 0, 0, 0, 0, 24, 44, 65, 2 + iteration],
+            );
+        }
+    }
+}
