@@ -1,12 +1,12 @@
 test:nightly:
   image: docker.io/rust
   script:
-  - apt-get update && apt-get install -y clang cbindgen
-  - cargo version && cargo test --all --all-features
+    - apt-get update && apt-get install -y clang cbindgen
+    - cargo version && cargo test --all --all-features
 pages:
   image: docker.io/rust
   script:
-  - apt-get update && apt-get install -y clang cbindgen
+    - apt-get update && apt-get install -y clang cbindgen
     - cargo doc --no-deps --all-features
     - mkdir public
     - mv target/doc public/doc
