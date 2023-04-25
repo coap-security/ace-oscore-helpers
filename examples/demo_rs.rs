@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2022 EDF (Électricité de France S.A.)
+// SPDX-License-Identifier: BSD-3-Clause
+// See README for all details on copyright, authorship and license.
 //! A standalone RS that doesn't really offer any resources other than /authz-info
 //!
 //! This can be tested by running the following:

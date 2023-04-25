@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2022 EDF (Électricité de France S.A.)
+// SPDX-License-Identifier: BSD-3-Clause
+// See README for all details on copyright, authorship and license.
 //! Collection of tools useful for implementing the ACE OSCORE profile (RFC9203)
 //!
 //! It is expected that parts of this might be moved into standalone crates, or into the coset or

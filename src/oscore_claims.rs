@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright 2022 EDF (Électricité de France S.A.)
+// SPDX-License-Identifier: BSD-3-Clause
+// See README for all details on copyright, authorship and license.
 //! Extractor for [coset::OscoreInputMaterial] (proposed in
 //! [PR58](https://github.com/google/coset/pull/58)) from a [coset::cwt::ClaimsSet].
 //!
