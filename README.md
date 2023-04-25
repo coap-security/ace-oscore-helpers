@@ -14,7 +14,7 @@ License
 -------
 
 This project and all files contained in it is published under the
-BSD-3-Clause license as defined in ./LICENSES/BSD-3-Clause.txt,
+BSD-3-Clause license as defined in [`LICENSES/BSD-3-Clause.txt`](LICENSES/BSD-3-Clause.txt)
 unless noted differently in the file.
 
 Copyright: 2022 EDF (Électricité de France S.A.)
