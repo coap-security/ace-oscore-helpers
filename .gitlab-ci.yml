@@ -7,6 +7,13 @@ test:nightly:
   script:
     - apt-get update && apt-get install -y clang cbindgen
     - cargo version && cargo test --all --all-features
+
+reuse:
+  image: python:3
+  script:
+    - pip install reuse
+    - reuse lint
+
 pages:
   image: docker.io/rust
   script:
