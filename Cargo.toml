@@ -9,6 +9,9 @@ edition = "2021"
 authors = [ "Christian Amsüss" ]
 license = "BSD-3-Clause"
 
+repository = "https://gitlab.com/oscore/ace-oscore-helpers"
+docs = "https://docs.rs/crate/ace-oscore-helpers/latest"
+
 [dependencies]
 dcaf = { version = "^0.3", default-features = false }
 coset = { version = "^0.3", default-features = false }
