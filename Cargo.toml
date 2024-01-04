@@ -13,6 +13,7 @@ repository = "https://gitlab.com/oscore/ace-oscore-helpers"
 docs = "https://docs.rs/crate/ace-oscore-helpers/latest"
 
 [dependencies]
+rand_core = "0.6"
 dcaf = { version = "^0.3", default-features = false }
 coset = { version = "^0.3", default-features = false }
 # to pick data out of them

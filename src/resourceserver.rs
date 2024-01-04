@@ -82,7 +82,7 @@ pub struct RsAsSharedData {
 pub struct ResourceServer<AppClaims, RandomSource>
 where
     AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>,
-    RandomSource: FnMut(&mut [u8]),
+    RandomSource: rand_core::RngCore,
 {
     /// Hint for creating the next id2
     ///
@@ -109,7 +109,7 @@ where
 impl<AppClaims, RandomSource> ResourceServer<AppClaims, RandomSource>
 where
     AppClaims: for<'a> TryFrom<&'a coset::cwt::ClaimsSet>,
-    RandomSource: FnMut(&mut [u8]),
+    RandomSource: rand_core::RngCore,
 {
     /// Main constructor of ResourceServer
     ///
@@ -162,7 +162,7 @@ where
     ) -> Result<(Id, Nonce), crate::oscore_claims::DeriveError> {
         let mut nonce2: Nonce = Default::default();
         nonce2.resize_default(8).expect("8 < MAX_NONCE_LEN"); // 64-bit long random number is recommended
-        (self.random_source)(&mut nonce2);
+        self.random_source.fill_bytes(&mut nonce2);
         let mut id2 = self.take_id2();
         if id2 == id1 {
             // If it's still identical, then take_id2 is broken in that it doesn't cycle as
@@ -218,7 +218,7 @@ where
 /// implemented (but would be implemented in a different struct).
 pub struct UnprotectedAuthzInfoEndpoint<
     AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
-    RandomSource: FnMut(&mut [u8]),
+    RandomSource: rand_core::RngCore,
     RsAccess: for<'b> FnMut() -> Option<RsDeref>,
     RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
 > {
@@ -227,7 +227,7 @@ pub struct UnprotectedAuthzInfoEndpoint<
 
 impl<
         AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
-        RandomSource: FnMut(&mut [u8]),
+        RandomSource: rand_core::RngCore,
         RsAccess: for<'b> FnMut() -> Option<RsDeref>,
         RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
     > UnprotectedAuthzInfoEndpoint<AppClaims, RandomSource, RsAccess, RsDeref>
@@ -244,7 +244,7 @@ impl<
 
 impl<
         AppClaims: for<'b> TryFrom<&'b coset::cwt::ClaimsSet>,
-        RandomSource: FnMut(&mut [u8]),
+        RandomSource: rand_core::RngCore,
         RsAccess: for<'b> FnMut() -> Option<RsDeref>,
         RsDeref: DerefMut<Target = ResourceServer<AppClaims, RandomSource>>,
     > coap_handler::Handler
