@@ -42,10 +42,9 @@ fn main() {
         key: aead::generic_array::arr![u8; 'a' as u8, 'b' as u8, 'c' as u8, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     };
 
-    use rand::RngCore;
     let rs = ace_oscore_helpers::resourceserver::ResourceServer::<AppClaims, _>::new_with_association_and_randomness(
         association,
-        |data| rand::thread_rng().fill_bytes(data),
+        rand::thread_rng(),
     );
     let rs = core::cell::RefCell::new(rs);
 

@@ -521,7 +521,26 @@ mod test {
         }
     }
 
-    fn create_test_rs() -> ResourceServer<AppClaims, fn(&mut [u8])> {
+    /// A very bad random number generator
+    struct RandomIsAlwaysZero;
+
+    impl rand_core::RngCore for RandomIsAlwaysZero {
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            dest.fill(0);
+        }
+        fn next_u32(&mut self) -> u32 {
+            0
+        }
+        fn next_u64(&mut self) -> u64 {
+            0
+        }
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+            self.fill_bytes(dest);
+            Ok(())
+        }
+    }
+
+    fn create_test_rs() -> ResourceServer<AppClaims, RandomIsAlwaysZero> {
         // See demo_rs example for source of these data
 
         let association = RsAsSharedData {
@@ -531,12 +550,7 @@ mod test {
             key: aead::generic_array::arr![u8; 'a' as u8, 'b' as u8, 'c' as u8, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
         };
 
-        /// A very bad random number generator
-        fn assign_zeros(data: &mut [u8]) {
-            data.iter_mut().for_each(|a| *a = 0);
-        }
-
-        ResourceServer::new_with_association_and_randomness(association, assign_zeros)
+        ResourceServer::new_with_association_and_randomness(association, RandomIsAlwaysZero)
     }
 
     #[test]

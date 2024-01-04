@@ -86,6 +86,7 @@ mod test {
         0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d,
     ];
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn parse() {
         let rch = RequestCreationHints::parse_cbor(ENCODED).unwrap();
@@ -93,6 +94,7 @@ mod test {
         assert_eq!(&rch.audience, "coaps://rs.example.com");
     }
 
+    #[cfg(feature = "alloc")]
     #[test]
     fn serialize() {
         let rch = RequestCreationHints {
