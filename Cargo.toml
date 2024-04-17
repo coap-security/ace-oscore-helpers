@@ -4,9 +4,12 @@
 
 [package]
 name = "ace-oscore-helpers"
+description = "Tools useful for implementing the ACE OSCORE profile (RFC9203)"
+keywords = [ "ace", "coap", "oscore" ]
+categories = [ "no-std::no-alloc", "embedded" ]
 version = "0.1.0"
 edition = "2021"
-authors = [ "Christian Amsüss" ]
+authors = [ "EDF, developed in collaboration with Christian Amsüss" ]
 license = "BSD-3-Clause"
 
 repository = "https://gitlab.com/oscore/ace-oscore-helpers"
