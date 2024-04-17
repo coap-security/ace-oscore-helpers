@@ -239,7 +239,9 @@ mod for_liboscore {
             use dcaf::ToCborMap;
             let token_response =
                 dcaf::AccessTokenResponse::deserialize_from(token_response).unwrap();
-            let dcaf::ProofOfPossessionKey::OscoreInputMaterial(material) = token_response.cnf.unwrap() else {
+            let dcaf::ProofOfPossessionKey::OscoreInputMaterial(material) =
+                token_response.cnf.unwrap()
+            else {
                 panic!("Unexpected PoP key");
             };
             // Nonces from RFC fig. 13
